@@ -955,11 +955,11 @@ def auth_login(req: LoginRequest):
                                  "Director General / Oversight Administrator", "Govt of India (MoSPI Oversight)",
                                  "National Infrastructure Monitoring Authority", "dg.oversight@gov.in")
                 else:
-                    raise HTTPException(401, "Invalid admin ID. Authorized ID is 'admin' or 'ADM-DG-01'")
+                    raise HTTPException(401, "Invalid admin credentials")
 
             stored_pwd = admin_row[2]
             if pwd != stored_pwd and pwd != "admin123":
-                raise HTTPException(401, "Invalid admin password. Default demo password is 'admin123'")
+                raise HTTPException(401, "Invalid admin credentials")
 
             return {
                 "status": "success",
@@ -1000,7 +1000,7 @@ def auth_login(req: LoginRequest):
 
             stored_pwd = c_row[1]
             if pwd != stored_pwd and pwd != "contractor123":
-                raise HTTPException(401, "Invalid contractor password. Default demo password is 'contractor123'")
+                raise HTTPException(401, "Invalid contractor password")
 
             return {
                 "status": "success",

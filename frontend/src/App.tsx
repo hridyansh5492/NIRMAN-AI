@@ -10,6 +10,7 @@ import StateAnalysis from './pages/StateAnalysis'
 import Reports from './pages/Reports'
 import ContractorPanel from './pages/ContractorPanel'
 import AdminPanel from './pages/AdminPanel'
+import LoginPage from './pages/LoginPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
 function RootRoute() {
@@ -70,6 +71,7 @@ export default function App() {
         {/* Pass dark mode state down as props so the toggle button can live inside Layout */}
         <Route element={<Layout darkMode={darkMode} setDarkMode={setDarkMode} />}>
           <Route path="/" element={<RootRoute />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/admin" element={<AdminRoute />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />

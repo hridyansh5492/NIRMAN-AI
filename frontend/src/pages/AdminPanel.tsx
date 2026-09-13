@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck,
   Building2,
@@ -64,7 +65,8 @@ const statesList = [
 ]
 
 export default function AdminPanel() {
-  const { role, user, setLoginModalOpen } = useAuth()
+  const navigate = useNavigate()
+  const { role, user } = useAuth()
   const [activeTab, setActiveTab] = useState<'states' | 'add-project' | 'audits'>('states')
 
   // State Assignments Tab state
@@ -248,7 +250,7 @@ export default function AdminPanel() {
             Project registration, location geofencing configuration, and state contractor package assignments are restricted exclusively to the Oversight Administrator.
           </p>
           <button
-            onClick={() => setLoginModalOpen(true)}
+            onClick={() => navigate('/login?tab=admin')}
             className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white text-xs font-bold shadow-md shadow-cyan-500/20 transition-all cursor-pointer"
           >
             <Building2 size={15} />

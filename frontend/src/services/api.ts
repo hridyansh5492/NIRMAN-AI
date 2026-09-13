@@ -502,9 +502,9 @@ export async function authLogin(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       role,
-      username: id || (role === 'admin' ? 'admin' : 'CNT-LT-01'),
-      contractor_id: id || 'CNT-LT-01',
-      password: password || (role === 'admin' ? 'admin123' : 'contractor123'),
+      username: id || '',
+      contractor_id: id || '',
+      password: password || '',
     }),
   })
   if (!res.ok) {

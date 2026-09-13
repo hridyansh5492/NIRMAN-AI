@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { 
   HardHat, 
   Building2, 
@@ -29,7 +30,8 @@ import { GeofenceMap } from '../components/GeofenceMap'
 import type { ContractorProject, ContractorSubmission, GeofenceLamina } from '../types'
 
 export default function ContractorPanel() {
-  const { user, role, setLoginModalOpen } = useAuth()
+  const navigate = useNavigate()
+  const { user, role } = useAuth()
   const [projects, setProjects] = useState<ContractorProject[]>([])
   const [submissions, setSubmissions] = useState<ContractorSubmission[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -198,6 +200,31 @@ export default function ContractorPanel() {
     }
   }
 
+  if (role !== 'contractor') {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-16">
+        <div className="rounded-3xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 p-8 sm:p-12 text-center max-w-xl mx-auto space-y-4 shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">
+            <HardHat size={28} />
+          </div>
+          <h2 className="font-display text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+            Contractor Portal Sign In Required
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Please sign in with your registered Contractor ID and password to manage assigned packages, submit verified on-site photos, and monitor geofenced lamina compliance.
+          </p>
+          <button
+            onClick={() => navigate('/login?tab=contractor')}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-orange hover:bg-brand-orangeDark text-white text-xs font-bold shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+          >
+            <HardHat size={15} />
+            <span>Go to Contractor Login</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Contractor Header Banner */}
@@ -229,7 +256,7 @@ export default function ContractorPanel() {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setLoginModalOpen(true)}
+              onClick={() => navigate('/login?tab=contractor')}
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 border border-white/10 text-white transition-all cursor-pointer"
             >
               Switch Contractor Account

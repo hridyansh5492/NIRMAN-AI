@@ -21,7 +21,6 @@ import {
   Building2,
 } from 'lucide-react'
 import NotificationCenter from './NotificationCenter'
-import { LoginModal } from './LoginModal'
 import { useAuth } from '../context/AuthContext'
 import paimanaLogo from '../assests/paimana-logo.png'
 import { getProjects } from '../services/api'
@@ -63,7 +62,7 @@ interface LayoutProps {
 
 export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
   const navigate = useNavigate()
-  const { user, role, logout, setLoginModalOpen } = useAuth()
+  const { user, role, logout } = useAuth()
   const [notifOpen, setNotifOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -263,13 +262,13 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
             
             {/* Unified User Authentication Controls */}
             {role === 'guest' ? (
-              <button
-                onClick={() => setLoginModalOpen(true)}
+              <NavLink
+                to="/login"
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-brand-orange hover:from-amber-600 hover:to-brand-orangeDark text-white text-xs font-bold shadow-sm shadow-amber-500/20 transition-all cursor-pointer"
               >
                 <LogIn size={13} />
-                <span>Login / Portal</span>
-              </button>
+                <span>Portal Login</span>
+              </NavLink>
             ) : role === 'contractor' ? (
               <div className="relative">
                 <div className="flex items-center gap-1.5">
@@ -317,7 +316,7 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
                     <button
                       onClick={() => {
                         setUserMenuOpen(false)
-                        setLoginModalOpen(true)
+                        navigate('/login')
                       }}
                       className="w-full flex items-center gap-2 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-ink-800 text-slate-700 dark:text-slate-300 transition-colors text-left cursor-pointer"
                     >
@@ -376,7 +375,7 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
                     <button
                       onClick={() => {
                         setUserMenuOpen(false)
-                        setLoginModalOpen(true)
+                        navigate('/login')
                       }}
                       className="w-full flex items-center gap-2 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-ink-800 text-slate-700 dark:text-slate-300 transition-colors text-left cursor-pointer"
                     >
@@ -645,9 +644,6 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
       <main className="mx-auto max-w-[1440px] px-6 py-8">
         <Outlet />
       </main>
-
-      {/* Unified Login Modal for Contractor & Admin */}
-      <LoginModal />
 
     </div>
   )
