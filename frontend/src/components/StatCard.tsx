@@ -9,28 +9,41 @@ interface StatCardProps {
 }
 
 const toneClass: Record<string, string> = {
-  'up-good': 'text-emerald-600',
-  'up-bad': 'text-amber-600',
-  'down-good': 'text-emerald-600',
-  'down-bad': 'text-red-500',
+  'up-good': 'text-emerald-600 dark:text-emerald-400',
+  'up-bad': 'text-amber-600 dark:text-amber-400',
+  'down-good': 'text-emerald-600 dark:text-emerald-400',
+  'down-bad': 'text-rose-500 dark:text-rose-400',
 }
 
-export default function StatCard({ label, value, delta, deltaTone = 'up-good', sparkline }: StatCardProps) {
+export default function StatCard({ label, value, delta, deltaTone, sparkline }: StatCardProps) {
+  const deltaColor = deltaTone ? (toneClass[deltaTone] || 'text-slate-500 dark:text-slate-400') : 'text-slate-500 dark:text-slate-400'
+
   return (
-    // 1. Inside StatCard.tsx: Find the outer wrapper div and update its classes
-<div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-5 shadow-sm transition-colors duration-200">
-  
-  {/* Inside the card, also ensure label text stays readable */}
-  <p className="text-[10px] font-semibold tracking-wide text-slate-400 dark:text-slate-500">
-    {label}
-  </p>
-  
-  {/* Ensure value text changes to white in dark mode */}
-  <p className="mt-2 font-display text-2xl font-bold text-ink-950 dark:text-white">
-    {value}
-  </p>
-  
-  {/* ...rest of your StatCard content... */}
-</div>
+    <div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-4 sm:p-5 shadow-sm transition-colors duration-200 flex flex-col justify-between">
+      <div>
+        <p className="text-[10px] font-semibold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
+          {label}
+        </p>
+        <p className="mt-2 font-display text-2xl font-bold text-ink-950 dark:text-white">
+          {value}
+        </p>
+      </div>
+
+      {(delta || sparkline) && (
+        <div className="mt-3 flex items-center justify-between gap-2">
+          {delta && (
+            <span className={`text-xs font-semibold ${deltaColor}`}>
+              {delta}
+            </span>
+          )}
+          {sparkline && (
+            <div className="shrink-0 w-16 h-7 flex items-center justify-end">
+              {sparkline}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
+
