@@ -45,6 +45,7 @@ export interface Project {
   contractor?: Contractor
   contractor_id?: string
   contractor_name?: string
+  location?: string
 }
 
 /** A project as returned by the backend's geospatial feed (`/api/projects?map=true`). */
@@ -54,7 +55,8 @@ export interface MapProject {
   name: string
   sector: string
   state: string
-  /** Functional state-centroid coordinates (display-only, for pinning). */
+  location?: string
+  /** Functional coordinates across realistic district hubs (display-only, for pinning). */
   lat: number
   lng: number
   cost_cr?: number

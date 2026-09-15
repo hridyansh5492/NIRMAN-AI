@@ -177,28 +177,420 @@ def _normalise_state(state: str) -> str:
     return state.strip()
 
 
+# Comprehensive district and industrial / infrastructure hubs per State and Union Territory.
+# Distributes projects across realistic specific work locations throughout each state,
+# preventing unreal clustered clumps at state capitals on the map.
+STATE_DISTRICT_HUBS: Dict[str, List[Tuple[str, float, float]]] = {
+    "Andaman & Nicobar": [
+        ("Port Blair", 11.667, 92.736),
+        ("Havelock Island (Swaraj Dweep)", 11.976, 92.987),
+        ("Diglipur", 13.267, 92.967),
+        ("Mayabunder", 12.933, 92.933),
+        ("Car Nicobar", 9.155, 92.766),
+    ],
+    "Andhra Pradesh": [
+        ("Amaravati Capital Region", 16.506, 80.648),
+        ("Visakhapatnam Port Corridor", 17.686, 83.218),
+        ("Vijayawada Logistics Hub", 16.506, 80.648),
+        ("Tirupati Transit Node", 13.628, 79.419),
+        ("Guntur Agri-Expressway", 16.306, 80.436),
+        ("Kurnool Industrial Node", 15.828, 78.037),
+        ("Nellore Coastal Highway", 14.442, 79.986),
+        ("Kakinada Deepwater Port", 16.989, 82.247),
+        ("Anantapur Defense Corridor", 14.681, 77.600),
+        ("Kadapa Mineral Belt", 14.467, 78.824),
+    ],
+    "Arunachal Pradesh": [
+        ("Itanagar Capital Hub", 27.083, 93.616),
+        ("Tawang Border Corridor", 27.586, 91.859),
+        ("Pasighat Smart City", 28.066, 95.326),
+        ("Ziro Valley Road Section", 27.594, 93.838),
+        ("Bhalukpong Transit Route", 27.013, 92.646),
+        ("Roing Highway Link", 28.140, 95.830),
+    ],
+    "Assam": [
+        ("Guwahati Metropolitan Area", 26.144, 91.736),
+        ("Dibrugarh Multi-Modal Hub", 27.472, 94.912),
+        ("Silchar Barak Valley Link", 24.833, 92.778),
+        ("Jorhat Tea Logistics Park", 26.750, 94.216),
+        ("Tezpur Brahmaputra Corridor", 26.633, 92.793),
+        ("Nagaon Central Highway", 26.346, 92.684),
+        ("Bongaigaon Refinery Junction", 26.479, 90.558),
+        ("Tinsukia Freight Terminal", 27.492, 95.346),
+    ],
+    "Bihar": [
+        ("Patna Ring Road & Metro", 25.609, 85.123),
+        ("Gaya Pilgrim Rail Node", 24.795, 85.000),
+        ("Muzaffarpur North Highway", 26.120, 85.364),
+        ("Bhagalpur Silk City Expressway", 25.242, 86.984),
+        ("Darbhanga Airport & Transit", 26.154, 85.891),
+        ("Purnia Seemanchal Corridor", 25.777, 87.475),
+        ("Begusarai Industrial Belt", 25.418, 86.127),
+        ("Barauni Refinery & Energy Node", 25.474, 85.975),
+        ("Chhapra Saran Rail Complex", 25.784, 84.727),
+    ],
+    "Chandigarh": [
+        ("Sector 17 City Centre", 30.739, 76.782),
+        ("IT Park Manimajra", 30.724, 76.848),
+        ("Mohali Border Expressway", 30.704, 76.717),
+        ("Industrial Area Phase 1", 30.707, 76.802),
+    ],
+    "Chhattisgarh": [
+        ("Raipur Capital Logistics Hub", 21.251, 81.629),
+        ("Nava Raipur Atal Nagar", 21.161, 81.787),
+        ("Bhilai Steel City Corridor", 21.193, 81.350),
+        ("Bilaspur High Court & Rail Zone", 22.079, 82.140),
+        ("Korba Thermal Power Belt", 22.359, 82.684),
+        ("Jagdalpur Bastar Transit Corridor", 19.074, 82.008),
+        ("Raigarh Coal-Steel Expressway", 21.897, 83.395),
+        ("Durg Bypass & Rail Flyover", 21.190, 81.284),
+    ],
+    "Dadra & Nagar Haveli and Daman & Diu": [
+        ("Daman Coastal Infrastructure", 20.398, 72.834),
+        ("Silvassa Industrial Estate", 20.276, 73.008),
+        ("Diu Tourism Port Works", 20.714, 70.987),
+        ("Dadra Manufacturing Park", 20.320, 72.970),
+    ],
+    "Delhi": [
+        ("Central Vista & Connaught Place", 28.613, 77.209),
+        ("Dwarka Expressway Corridor", 28.592, 77.046),
+        ("Rohini North Delhi Expansion", 28.749, 77.067),
+        ("Okhla Industrial & Metro Phase IV", 28.535, 77.273),
+        ("Narela Multi-Modal Sub-City", 28.853, 77.093),
+        ("Mayur Vihar Transit Junction", 28.608, 77.297),
+        ("Aerocity Transit Terminal", 28.556, 77.120),
+        ("Najafgarh Urban Freight Node", 28.609, 76.985),
+    ],
+    "Goa": [
+        ("Panaji Mandovi Promenade", 15.491, 73.818),
+        ("Mormugao Port Trust Rail Link", 15.412, 73.805),
+        ("Margao South Goa Transit Node", 15.273, 73.958),
+        ("Mopa (Manohar) Airport Corridor", 15.753, 73.864),
+        ("Vasco da Gama Industrial Spine", 15.399, 73.811),
+        ("Ponda Central Arterial Road", 15.402, 74.015),
+    ],
+    "Gujarat": [
+        ("Gandhinagar GIFT City & Metro", 23.215, 72.684),
+        ("Ahmedabad Ring Road & Sabarmati", 23.022, 72.571),
+        ("Surat Diamond Bourse & Metro", 21.170, 72.831),
+        ("Vadodara Expressway Node", 22.307, 73.181),
+        ("Rajkot AIIMS & Industrial Corridor", 22.303, 70.802),
+        ("Bhavnagar Coastal Port Highway", 21.764, 72.151),
+        ("Jamnagar Refining & Port Complex", 22.470, 70.057),
+        ("Kandla-Gandhidham Freight Terminal", 23.075, 70.133),
+        ("Mundra Port Special Economic Zone", 22.838, 69.721),
+        ("Bharuch-Dahej Petrochem PCPIR", 21.705, 72.995),
+        ("Mehsana North Highway Corridor", 23.588, 72.369),
+    ],
+    "Haryana": [
+        ("Gurugram Cyber City & CPR", 28.459, 77.026),
+        ("Faridabad Smart City Corridor", 28.408, 77.317),
+        ("Panipat Refinery & Textile Node", 29.390, 76.963),
+        ("Ambala Multi-Track Railway Junction", 30.378, 76.776),
+        ("Hisar Greenfield Airport Zone", 29.149, 75.721),
+        ("Rohtak Transit & Industrial Park", 28.895, 76.606),
+        ("Karnal GT Road Section", 29.685, 76.990),
+        ("Sonipat Kundli Logistics Park", 28.993, 77.019),
+        ("Manesar Industrial Corridor", 28.358, 76.936),
+    ],
+    "Himachal Pradesh": [
+        ("Shimla Mountain Tunnel & Bypass", 31.104, 77.173),
+        ("Dharamshala Smart Hill Corridor", 32.219, 76.323),
+        ("Kullu-Manali Tunnel Access Road", 32.239, 77.188),
+        ("Mandi Hydro-Electric Highway Node", 31.708, 76.932),
+        ("Solan Industrial Corridor (Baddi)", 30.957, 76.791),
+        ("Bilaspur Bhanupali Railway Link", 31.343, 76.757),
+        ("Una Broad-Gauge Railway Section", 31.468, 76.271),
+        ("Kangra Valley Infrastructure Node", 32.099, 76.269),
+    ],
+    "Jammu & Kashmir": [
+        ("Srinagar Smart City & Ring Road", 34.083, 74.797),
+        ("Jammu Tawi Rail & Airport Hub", 32.726, 74.857),
+        ("Anantnag South Kashmir Corridor", 33.731, 75.148),
+        ("Baramulla Border Railway Extension", 34.200, 74.343),
+        ("Udhampur-Srinagar-Baramulla Link", 32.926, 75.141),
+        ("Banihal Qazigund Tunnel Section", 33.551, 75.201),
+        ("Katra Vaishno Devi Transit Terminal", 32.993, 74.931),
+    ],
+    "Jharkhand": [
+        ("Ranchi Ring Road & Smart Sub-City", 23.344, 85.315),
+        ("Jamshedpur Steel Manufacturing Spine", 22.804, 86.202),
+        ("Dhanbad Coalfield Rail Infrastructure", 23.795, 86.430),
+        ("Bokaro Thermal & Steel Industrial Zone", 23.669, 86.151),
+        ("Deoghar International Airport Node", 24.441, 86.700),
+        ("Hazaribagh North Plateau Expressway", 23.993, 85.362),
+        ("Ramgarh Freight & Coal Transit Hub", 23.630, 85.514),
+        ("Giridih Rail Section", 24.186, 86.302),
+    ],
+    "Karnataka": [
+        ("Bengaluru Peripheral Ring Road & Metro", 12.972, 77.595),
+        ("Mysuru-Bengaluru Expressway Corridor", 12.295, 76.639),
+        ("Hubballi-Dharwad Industrial Node", 15.364, 75.124),
+        ("Mangaluru Coastal Port & Highway", 12.914, 74.856),
+        ("Belagavi Industrial & Rail Hub", 15.849, 74.497),
+        ("Kalaburagi Airport & Cement Corridor", 17.329, 76.834),
+        ("Ballari Steel & Mining Corridor", 15.139, 76.921),
+        ("Tumakuru Industrial Smart City", 13.340, 77.100),
+        ("Shivamogga Domestic Airport Zone", 13.929, 75.568),
+        ("Davangere Textile-Transit Node", 14.464, 75.921),
+    ],
+    "Kerala": [
+        ("Thiruvananthapuram Vizhinjam Port Corridor", 8.524, 76.936),
+        ("Kochi Water Metro & Container Transhipment", 9.931, 76.267),
+        ("Kozhikode Malabar Transit Highway", 11.258, 75.780),
+        ("Thrissur Cultural & Rail Junction", 10.527, 76.214),
+        ("Kannur International Airport Node", 11.874, 75.370),
+        ("Kollam Inland Waterway Terminal", 8.893, 76.614),
+        ("Palakkad Industrial Corridor & Gap", 10.786, 76.654),
+        ("Alappuzha Coastal Elevated Highway", 9.498, 76.338),
+    ],
+    "Ladakh": [
+        ("Leh High-Altitude Infrastructure Hub", 34.153, 77.577),
+        ("Kargil Strategic Road Section", 34.553, 76.134),
+        ("Zojila Tunnel Strategic Portal", 34.288, 75.485),
+        ("Diskit Nubra Valley Infrastructure", 34.542, 77.562),
+    ],
+    "Lakshadweep": [
+        ("Kavaratti Island Port Infrastructure", 10.578, 72.639),
+        ("Agatti Aerodrome Expansion", 10.828, 72.176),
+        ("Andrott Island Marine Terminal", 10.816, 73.666),
+    ],
+    "Madhya Pradesh": [
+        ("Bhopal Smart Capital & Metro", 23.259, 77.412),
+        ("Indore Super Corridor & Metro", 22.719, 75.857),
+        ("Jabalpur Narmada Highway Node", 23.181, 79.986),
+        ("Gwalior Heritage Transit & Airport", 26.218, 78.182),
+        ("Ujjain Mahakal Corridor & Highway", 23.176, 75.788),
+        ("Sagar Bundelkhand Link Highway", 23.838, 78.737),
+        ("Rewa Solar Park & Rail Terminal", 24.536, 81.303),
+        ("Satna Cement & Mining Spine", 24.600, 80.832),
+        ("Katni Multi-Track Railway Junction", 23.834, 80.399),
+        ("Singrauli Energy Capital Belt", 24.199, 82.664),
+    ],
+    "Maharashtra": [
+        ("Mumbai Coastal Road & Trans-Harbour Link", 18.922, 72.834),
+        ("Navi Mumbai International Airport Zone", 18.990, 73.072),
+        ("Pune Ring Road & Hinjawadi Metro", 18.520, 73.856),
+        ("Nagpur Samruddhi Mahamarg & Metro", 21.145, 79.088),
+        ("Nashik Industrial & Defense Corridor", 19.997, 73.789),
+        ("Chhatrapati Sambhaji Nagar (Aurangabad) DMIC", 19.876, 75.343),
+        ("Solapur Smart City & Textile Hub", 17.659, 75.906),
+        ("Kolhapur Western Ghats Expressway", 16.705, 74.243),
+        ("Amravati Textile Park & Bypass", 20.932, 77.752),
+        ("Ratnagiri Coastal Port Infrastructure", 16.990, 73.312),
+        ("Nanded Gurudwara Transit Node", 19.138, 77.321),
+        ("Jalgaon Multi-Modal Rail Corridor", 21.007, 75.562),
+        ("Chandrapur Thermal & Mining Complex", 19.961, 79.296),
+    ],
+    "Manipur": [
+        ("Imphal Valley Ring Road & Airport", 24.817, 93.937),
+        ("Jiribam-Imphal Railway Link", 24.802, 93.125),
+        ("Churachandpur Transit Corridor", 24.333, 93.677),
+        ("Thoubal Multi-Purpose River Works", 24.638, 94.004),
+    ],
+    "Meghalaya": [
+        ("Shillong Smart Hill Expressway", 25.578, 91.893),
+        ("Tura Garo Hills Road Corridor", 25.514, 90.220),
+        ("Jowai Jaintia Hills Coal Spine", 25.448, 92.203),
+        ("Nongpoh National Highway Section", 25.902, 91.880),
+        ("Dawki Integrated Check Post Route", 25.187, 92.018),
+    ],
+    "Mizoram": [
+        ("Aizawl Capital Mobility Project", 23.727, 92.717),
+        ("Bairabi-Sairang Rail Terminal", 23.805, 92.658),
+        ("Lunglei Southern Highway Link", 22.888, 92.738),
+        ("Champhai Indo-Myanmar Border Road", 23.475, 93.328),
+    ],
+    "Nagaland": [
+        ("Kohima Capital Smart Infrastructure", 25.675, 94.108),
+        ("Dimapur Multi-Modal Logistics Hub", 25.906, 93.727),
+        ("Mokokchung Central Highway", 26.326, 94.520),
+        ("Mon Northern Border Road Node", 26.742, 95.056),
+    ],
+    "Odisha": [
+        ("Bhubaneswar Smart Capital & Metro", 20.296, 85.824),
+        ("Cuttack Mahanadi Riverfront Corridor", 20.462, 85.882),
+        ("Rourkela Steel City Infrastructure", 22.260, 84.853),
+        ("Paradip Deep Sea Port Rail Link", 20.316, 86.611),
+        ("Dhamra Port Freight Corridor", 20.803, 86.963),
+        ("Berhampur South Odisha Transit Spine", 19.315, 84.794),
+        ("Sambalpur Hirakud Industrial Belt", 21.466, 83.981),
+        ("Jharsuguda Airport & Power Hub", 21.855, 84.006),
+        ("Angul-Talcher Coal-Steel Corridor", 20.840, 85.101),
+        ("Koraput Mineral Railway Section", 18.813, 82.711),
+    ],
+    "Puducherry": [
+        ("Puducherry Coastal Promenade & Port", 11.941, 79.808),
+        ("Karaikal Deep Water Port Corridor", 10.925, 79.838),
+        ("Mahe Riverfront Transit Route", 11.700, 75.534),
+        ("Yanam Godavari Marine Hub", 16.733, 82.217),
+    ],
+    "Punjab": [
+        ("Chandigarh-Mohali Sub-City Corridor", 30.704, 76.717),
+        ("Ludhiana Industrial Metro & Elevated Road", 30.901, 75.857),
+        ("Amritsar Golden Temple Mass Transit", 31.634, 74.872),
+        ("Jalandhar Grand Trunk Road Expansion", 31.326, 75.576),
+        ("Bathinda AIIMS & Refinery Transit Hub", 30.211, 74.945),
+        ("Patiala Heritage Bypass & Rail Line", 30.339, 76.386),
+        ("Pathankot Border Infrastructure Node", 32.268, 75.652),
+        ("Hoshiarpur Multi-Lane Highway", 31.527, 75.911),
+    ],
+    "Rajasthan": [
+        ("Jaipur Ring Road & Metro Phase II", 26.912, 75.787),
+        ("Jodhpur Solar Corridor & Airport", 26.238, 73.024),
+        ("Kota Chambal Riverfront & Power Hub", 25.213, 75.864),
+        ("Udaipur Smart Tourism & Expressway", 24.585, 73.712),
+        ("Bhiwadi-Neemrana DMIC Industrial Hub", 28.210, 76.840),
+        ("Ajmer-Pushkar Transit Corridor", 26.449, 74.639),
+        ("Bikaner Solar & Border Highway", 28.022, 73.311),
+        ("Barmer Refinery & Petrochemical Complex", 25.753, 71.418),
+        ("Alwar Delhi-NCR Regional Transit System", 27.553, 76.634),
+        ("Bhilwara Textile Industrial Belt", 25.346, 74.636),
+    ],
+    "Sikkim": [
+        ("Gangtok Ropeway & Smart Transit", 27.339, 88.614),
+        ("Pakyong Greenfield Airport Corridor", 27.234, 88.586),
+        ("Namchi South Sikkim Infrastructure", 27.166, 88.366),
+        ("Rangpo-Sivok Railway Link Portal", 27.176, 88.528),
+        ("Mangan North Mountain Highway", 27.508, 88.529),
+    ],
+    "Tamil Nadu": [
+        ("Chennai Metro Rail Phase II & Port Expressway", 13.083, 80.270),
+        ("Coimbatore Western Ring Road & IT Corridor", 11.016, 76.955),
+        ("Madurai Elevated Highway & AIIMS Site", 9.925, 78.119),
+        ("Tiruchirappalli Multi-Modal Airport Hub", 10.790, 78.704),
+        ("Salem Defense Industrial Corridor", 11.664, 78.146),
+        ("Thoothukudi VO Chidambaranar Port Hub", 8.764, 78.134),
+        ("Tirunelveli Solar & Highway Spine", 8.713, 77.756),
+        ("Tiruppur Export Freight Terminal", 11.108, 77.341),
+        ("Erode Industrial Bypass", 11.341, 77.717),
+        ("Hosur Industrial & Electronics SEZ", 12.740, 77.825),
+        ("Vellore Golden Quad Highway", 12.916, 79.132),
+    ],
+    "Telangana": [
+        ("Hyderabad Regional Ring Road & Metro", 17.385, 78.487),
+        ("Warangal Kakatiya Mega Textile Park", 17.968, 79.594),
+        ("Karimnagar Smart City Highway", 18.438, 79.128),
+        ("Nizamabad Agricultural Logistics Hub", 18.672, 78.094),
+        ("Khammam Granites Freight Corridor", 17.247, 80.151),
+        ("Ramagundam Fertilizer & Thermal Complex", 18.802, 79.467),
+        ("Mahbubnagar Pharma SEZ & Highway", 16.748, 77.989),
+        ("Siddipet Rail Link & Transit Node", 18.101, 78.852),
+    ],
+    "Tripura": [
+        ("Agartala Smart Capital & Akhaura Rail", 23.831, 91.287),
+        ("Udaipur Gomati Transit Link", 23.534, 91.488),
+        ("Dharmanagar Broad Gauge Rail Depot", 24.375, 92.164),
+        ("Sabroom Multi-Modal Special Economic Zone", 23.003, 91.733),
+        ("Kailashahar Border Infrastructure Hub", 24.329, 92.006),
+    ],
+    "Uttar Pradesh": [
+        ("Noida-Greater Noida & Jewar International Airport", 28.191, 77.650),
+        ("Lucknow Outer Ring Road & Metro", 26.846, 80.946),
+        ("Kanpur Industrial Metro & Highway Corridor", 26.449, 80.331),
+        ("Varanasi Multi-Modal Terminal & Ring Road", 25.317, 82.973),
+        ("Prayagraj Kumbh Transit & Ganga Expressway", 25.435, 81.846),
+        ("Agra Metro & Yamuna Expressway Expansion", 27.176, 78.008),
+        ("Gorakhpur AIIMS & Purvanchal Link Expressway", 26.760, 83.373),
+        ("Bareilly Smart City & Airport Terminal", 28.367, 79.430),
+        ("Meerut Delhi-Meerut Rapid Rail (RRTS)", 28.984, 77.706),
+        ("Aligarh Defense Industrial Corridor Node", 27.897, 78.088),
+        ("Moradabad Freight & Export Highway", 28.838, 78.776),
+        ("Jhansi Bundelkhand Defense Node & Expressway", 25.448, 78.568),
+        ("Ayodhya Airport & Ram Mandir Transit Spine", 26.792, 82.199),
+        ("Mathura-Vrindavan Heritage Transit", 27.492, 77.673),
+        ("Saharanpur Western Dedicated Freight Corridor", 29.964, 77.546),
+    ],
+    "Uttarakhand": [
+        ("Dehradun Capital Smart Mobility Hub", 30.316, 78.032),
+        ("Haridwar Industrial Estate & Rail Corridor", 29.945, 78.164),
+        ("Rishikesh-Karnaprayag Mountain Rail Section", 30.086, 78.267),
+        ("Nainital High-Altitude Eco-Corridor", 29.391, 79.454),
+        ("Haldwani Kathgodam Multi-Modal Hub", 29.218, 79.513),
+        ("Rudrapur SIDCUL Manufacturing Expressway", 28.980, 79.400),
+        ("Roorkee National Highway & Canal Works", 29.854, 77.888),
+        ("Almora Kumaon Ridge Highway", 29.597, 79.659),
+        ("Pithoragarh Border Highway Section", 29.582, 80.218),
+        ("Chamoli-Gopeshwar Char Dham Package", 30.407, 79.328),
+        ("Tehri Garhwal Hydro & Tunnel Corridor", 30.378, 78.480),
+        ("Kashipur Industrial Transit Node", 29.210, 78.961),
+    ],
+    "West Bengal": [
+        ("Kolkata East-West Metro & Port Trust", 22.572, 88.364),
+        ("New Town & Rajarhat Smart City Spine", 22.585, 88.483),
+        ("Howrah Rail Terminus & Elevated Viaducts", 22.595, 78.263),
+        ("Siliguri North Bengal Multi-Modal Hub", 26.727, 88.395),
+        ("Durgapur Steel & Aerotropolis Corridor", 23.520, 87.311),
+        ("Asansol Multi-Track Rail Infrastructure", 23.673, 86.952),
+        ("Haldia Petrochem Port & Navigation Terminal", 22.066, 88.069),
+        ("Kharagpur Railway Freight Junction & IIT Park", 22.346, 87.231),
+        ("Malda Northern Transit & Mango Corridor", 25.010, 88.141),
+        ("Bardhaman Grand Trunk Railway Node", 23.232, 87.861),
+    ],
+}
+
+
+def _normalise_state(state: str) -> str:
+    """Return canonical state name (or the raw value when unknown)."""
+    if not state:
+        return "India"
+    key = state.strip().lower()
+    # "Maharashtra / Gujarat" -> "Maharashtra"
+    if " / " in key:
+        key = key.split(" / ")[0].strip()
+    key = STATE_ALIASES.get(key, key)
+    for name in STATE_CENTROIDS:
+        if name.lower() == key:
+            return name
+    return state.strip()
+
+
 def get_state_centroid(state: str) -> Optional[List[float]]:
     """Return [lat, lng] for a state name or None when unknown."""
     return STATE_CENTROIDS.get(_normalise_state(state))
 
 
-def coordinates_for(project_id: str, state: str) -> Optional[Tuple[float, float]]:
-    """Deterministic (lat, lng) for a project id.
+def get_state_hubs(state: str) -> List[Tuple[str, float, float]]:
+    """Return list of district/project hubs for a given state name."""
+    canonical = _normalise_state(state)
+    return STATE_DISTRICT_HUBS.get(canonical, [])
 
-    Uses a seeded PRNG so the same project always lands on the same point in a
-    small ~0.5 degree radius around its state centroid. Returns None only when
-    the state cannot be resolved at all.
+
+def coordinates_for(project_id: str, state: str) -> Optional[Tuple[float, float]]:
+    """Deterministic (lat, lng) for a project id across realistic district work sites.
+
+    Instead of clustering all projects in a single capital centroid, projects are
+    deterministically assigned to real district/city hubs across the state geometry,
+    with a small localized jitter around the specific project site.
     """
-    centroid = get_state_centroid(state)
-    if centroid is None:
-        return None
+    hubs = get_state_hubs(state)
     rng = random.Random(f"{project_id}::{state}")
-    lat = centroid[0] + rng.uniform(-0.45, 0.45)
-    lng = centroid[1] + rng.uniform(-0.6, 0.6)
+    if hubs:
+        # Assign to a specific district hub deterministically
+        hub_name, h_lat, h_lng = rng.choice(hubs)
+        lat = h_lat + rng.uniform(-0.06, 0.06)
+        lng = h_lng + rng.uniform(-0.06, 0.06)
+    else:
+        centroid = get_state_centroid(state)
+        if centroid is None:
+            return None
+        lat = centroid[0] + rng.uniform(-0.25, 0.25)
+        lng = centroid[1] + rng.uniform(-0.25, 0.25)
+
     # Keep inside approximate Indian landmass boundaries.
     lat = max(6.0, min(37.5, lat))
     lng = max(68.0, min(97.5, lng))
     return round(lat, 6), round(lng, 6)
+
+
+def get_district_for(project_id: str, state: str) -> str:
+    """Return the specific district/work site location name for a project."""
+    hubs = get_state_hubs(state)
+    if not hubs:
+        return _normalise_state(state)
+    rng = random.Random(f"{project_id}::{state}")
+    hub_name, _, _ = rng.choice(hubs)
+    return hub_name
 
 
 def map_demo_projects() -> List[dict]:

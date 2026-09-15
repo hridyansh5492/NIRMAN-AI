@@ -85,7 +85,9 @@ export default function ProjectMap({
             }}
           >
             <Tooltip direction="top" offset={[0, -6]} opacity={1}>
-              <span className="text-xs font-semibold">{p.name}</span>
+              <span className="text-xs font-semibold">
+                {p.name} {p.location ? `· ${p.location}` : ''}
+              </span>
             </Tooltip>
             <Popup>
               <div className="min-w-[230px] text-slate-900">
@@ -93,6 +95,11 @@ export default function ProjectMap({
                   {p.sector} · {p.state}
                 </p>
                 <p className="mt-1 text-sm font-bold leading-snug">{p.name}</p>
+                {p.location && (
+                  <p className="mt-0.5 text-xs text-cyan-700 font-medium">
+                    📍 Site: {p.location}
+                  </p>
+                )}
                 <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-600">
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${

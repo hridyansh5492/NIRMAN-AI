@@ -173,26 +173,66 @@ class SupabaseCursor:
 
 class SupabaseDBConnection:
     def __init__(self, db_url: str):
+        self.db_url = db_url
         self.conn = psycopg2.connect(db_url)
         self.row_factory = None
 
+    def _ensure_conn(self):
+        if self.conn is None or getattr(self.conn, 'closed', 1) != 0:
+            self.conn = psycopg2.connect(self.db_url)
+            return
+        try:
+            status = self.conn.get_transaction_status()
+            if status == psycopg2.extensions.TRANSACTION_STATUS_UNKNOWN:
+                self.conn = psycopg2.connect(self.db_url)
+        except Exception:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self.conn = psycopg2.connect(self.db_url)
+
     def cursor(self, cursor_factory=None):
+        self._ensure_conn()
         cf = cursor_factory or DictCursor
-        return SupabaseCursor(self.conn.cursor(cursor_factory=cf))
+        try:
+            return SupabaseCursor(self.conn.cursor(cursor_factory=cf))
+        except (psycopg2.InterfaceError, psycopg2.OperationalError):
+            self.conn = psycopg2.connect(self.db_url)
+            return SupabaseCursor(self.conn.cursor(cursor_factory=cf))
 
     def execute(self, sql, params=None):
-        cur = self.cursor()
-        cur.execute(sql, params)
-        return cur
+        self._ensure_conn()
+        try:
+            cur = self.cursor()
+            cur.execute(sql, params)
+            return cur
+        except (psycopg2.InterfaceError, psycopg2.OperationalError):
+            self.conn = psycopg2.connect(self.db_url)
+            cur = self.cursor()
+            cur.execute(sql, params)
+            return cur
 
     def commit(self):
-        self.conn.commit()
+        if self.conn and getattr(self.conn, 'closed', 1) == 0:
+            try:
+                self.conn.commit()
+            except Exception:
+                pass
 
     def rollback(self):
-        self.conn.rollback()
+        if self.conn and getattr(self.conn, 'closed', 1) == 0:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
 
     def close(self):
-        self.conn.close()
+        try:
+            if self.conn and getattr(self.conn, 'closed', 1) == 0:
+                self.conn.close()
+        except Exception:
+            pass
 
     def __enter__(self):
         return self

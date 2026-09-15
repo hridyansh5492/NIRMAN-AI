@@ -17,6 +17,7 @@ import type {
 } from '../types'
 import { projects as mockProjects, states as mockStates } from '../data/mockData'
 import { stateCentroids } from '../data/stateCentroids'
+import { stateDistrictHubs } from '../data/stateDistrictHubs'
 
 const BASE_URL = '' // Proxy forwards /api requests to http://127.0.0.1:8000
 
@@ -129,10 +130,26 @@ function centroidFor(state: string): [number, number] | null {
 export function buildFallbackMapProjects(): MapProject[] {
   const result: MapProject[] = []
   for (const p of mockProjects) {
-    const c = centroidFor(p.state)
-    if (!c) continue
-    const lat = Math.max(6, Math.min(37.5, c[0] + jitter(`${p.id}-lat`, 0.45)))
-    const lng = Math.max(68, Math.min(97.5, c[1] + jitter(`${p.id}-lng`, 0.6)))
+    const first = p.state.split('/')[0].split(',')[0].trim()
+    const hubs = stateDistrictHubs[first] || stateDistrictHubs[p.state] || []
+    let lat: number
+    let lng: number
+    let location: string | undefined = undefined
+
+    if (hubs.length > 0) {
+      const idx = Math.abs(Math.floor(jitter(`${p.id}-hub`, 1000))) % hubs.length
+      const hub = hubs[idx]
+      location = hub[0]
+      lat = Math.max(6, Math.min(37.5, hub[1] + jitter(`${p.id}-lat`, 0.05)))
+      lng = Math.max(68, Math.min(97.5, hub[2] + jitter(`${p.id}-lng`, 0.05)))
+    } else {
+      const c = centroidFor(p.state)
+      if (!c) continue
+      lat = Math.max(6, Math.min(37.5, c[0] + jitter(`${p.id}-lat`, 0.2)))
+      lng = Math.max(68, Math.min(97.5, c[1] + jitter(`${p.id}-lng`, 0.2)))
+      location = first
+    }
+
     const status = p.status
     result.push({
       id: p.id,
@@ -140,6 +157,7 @@ export function buildFallbackMapProjects(): MapProject[] {
       name: p.name,
       sector: p.sector,
       state: p.state,
+      location,
       lat: Number(lat.toFixed(6)),
       lng: Number(lng.toFixed(6)),
       physical_progress_pct: p.physicalProgress,

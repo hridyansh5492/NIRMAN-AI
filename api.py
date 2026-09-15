@@ -119,12 +119,14 @@ def _map_projects(limit: int = 200):
             continue
         risk = float(r.get("final_risk_score") or 50)
         level = str(r.get("risk_level") or ("Medium" if risk >= 40 else "Low"))
+        location = mock_data.get_district_for(str(r["project_id"]), str(r.get("state", "")))
         projects.append({
             "id": str(r["project_id"]),
             "name": f"{r.get('state')} {r.get('sector')} Project ({r['project_id']})",
             "project_id": str(r["project_id"]),
             "sector": str(r.get("sector") or "Infrastructure"),
             "state": str(r.get("state") or "India"),
+            "location": location,
             "lat": coords[0],
             "lng": coords[1],
             "cost_cr": round(float(r.get("sanctioned_cost") or 0), 2),
@@ -230,6 +232,7 @@ def format_project_card(row):
         "flags": flags,
         "final_risk_score": final_risk,
         "risk_level": risk_lvl,
+        "location": mock_data.get_district_for(pid, st),
         "contractor": mock_data.get_contractor_for_project(pid),
     }
 
@@ -402,6 +405,7 @@ def project_detail(project_id: str):
     result["state"] = st
     result["id"] = project_id
     result["name"] = f"{st} {sec} Project ({project_id})"
+    result["location"] = mock_data.get_district_for(project_id, st)
     result["ministry"] = MINISTRY_MAP.get(sec, f"Ministry of {sec}")
     result["status"] = _status_from_risk(result["risk_level"], result["physical_progress_pct"])
     result["costOverrunRisk"] = round(result["cop_prob"] * 100, 1)

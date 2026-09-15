@@ -154,9 +154,11 @@ def main():
         # per-project drift sampled around the state's REAL net monthly drift
         drift = rng.normal(net_drift, DRIFT_SIGMA)
 
+        # Single project cost sampled around real per-project average for the sector (not aggregate sector sum)
+        avg_proj_cost = float(sector.loc[sec, "original_cost"]) / max(1.0, float(sector.loc[sec, "project_count"]))
         sanctioned = float(np.clip(
-            rng.lognormal(np.log(max(float(sector.loc[sec, "original_cost"]), 1.0)), 0.55),
-            10.0, 2_000_000.0))
+            rng.lognormal(np.log(max(avg_proj_cost, 15.0)), 0.60),
+            15.0, 35000.0))
 
         duration_months = int(rng.integers(24, 121))
         sanctioned_date = pd.Timestamp(YEAR, 2, int(rng.integers(1, 29)))

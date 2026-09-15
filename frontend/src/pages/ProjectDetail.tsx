@@ -150,6 +150,12 @@ export default function ProjectDetail() {
             <span className="font-medium text-slate-700 dark:text-slate-300">{project.sector}</span>
             <span>·</span>
             <span>{project.state}</span>
+            {project.location && (
+              <>
+                <span>·</span>
+                <span className="text-cyan-600 dark:text-cyan-400 font-medium">📍 {project.location}</span>
+              </>
+            )}
             <span>·</span>
             <StatusPill status={project.status} />
             {project.risk_level && (
