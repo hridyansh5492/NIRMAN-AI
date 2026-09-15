@@ -406,6 +406,21 @@ export interface AINarrative {
   source: 'openrouter' | 'template'
 }
 
+export interface PortfolioAINarrative {
+  narrative: string
+  model: string
+  available: boolean
+  error: string | null
+  source: 'openrouter' | 'template'
+  metrics_used?: {
+    total_projects: number
+    projects_at_risk: number
+    avg_health: number
+    avg_cop: number
+    avg_top: number
+  }
+}
+
 /** Ask the OpenRouter-backed endpoint for a natural-language risk brief. */
 export async function getAINarrative(projectId: string): Promise<AINarrative> {
   try {
@@ -421,6 +436,25 @@ export async function getAINarrative(projectId: string): Promise<AINarrative> {
     return {
       project_id: projectId,
       narrative: null,
+      model: 'template',
+      available: false,
+      error: err instanceof Error ? err.message : 'request failed',
+      source: 'template',
+    }
+  }
+}
+
+/** Fetch macro-level Generated Analytical Summary from OpenRouter. */
+export async function getPortfolioAINarrative(refresh = false): Promise<PortfolioAINarrative> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/llm/portfolio-summary?refresh=${refresh ? 'true' : 'false'}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  } catch (err) {
+    console.warn('Portfolio LLM narrative unavailable, using fallback', err)
+    return {
+      narrative:
+        'National infrastructure portfolio health is tracked across machine learning models. Schemes with elevated risk are actively monitored by PM GatiShakti Apex Review.',
       model: 'template',
       available: false,
       error: err instanceof Error ? err.message : 'request failed',

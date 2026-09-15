@@ -176,3 +176,86 @@ def generate_narrative(
     except Exception as exc:  # network, timeout, JSON, etc.
         return {"narrative": None, "model": model, "available": True,
                 "error": f"OpenRouter request failed: {exc}"}
+
+
+_PORTFOLIO_SYSTEM_PROMPT = (
+    "You are the Chief Infrastructure Analytics Advisor to the Ministry of Statistics "
+    "and Programme Implementation (MoSPI) and PM GatiShakti Apex Review. "
+    "You are given structured national infrastructure metrics derived from machine-learning "
+    "risk models (COP Cost Overrun Probability and TOP Time Overrun Probability). "
+    "Write an authoritative, high-impact executive analytical summary (3-4 concise sentences, "
+    "no markdown, no bullet lists). (1) State the overall portfolio health index and average "
+    "COP/TOP model risk probabilities; (2) Highlight the proportion and count of projects in "
+    "critical/high risk tiers; (3) Identify key exposure sectors or focal bottlenecks; "
+    "(4) Provide a decisive, actionable intervention priority for review officers. "
+    "Ground every figure strictly in the provided metrics. Write in crisp, professional English."
+)
+
+
+def generate_portfolio_narrative(
+    portfolio_data: Dict[str, Any],
+    *,
+    model: Optional[str] = None,
+    timeout: Optional[httpx.Timeout] = None,
+) -> Dict[str, Any]:
+    """Call OpenRouter to generate a macro-level analytical executive brief."""
+    cfg = get_config()
+    model = model or cfg["model"]
+
+    if not cfg["api_key"]:
+        return {
+            "narrative": None,
+            "model": model,
+            "available": False,
+            "error": "OPENROUTER_API_KEY is not configured",
+        }
+
+    url = f"{cfg['base_url'].rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {cfg['api_key']}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": _PORTFOLIO_SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(portfolio_data, ensure_ascii=False, indent=2)},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 400,
+    }
+
+    try:
+        with httpx.Client(timeout=timeout or _TIMEOUT) as client:
+            resp = client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        narrative = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+        if not narrative:
+            return {
+                "narrative": None,
+                "model": model,
+                "available": True,
+                "error": "OpenRouter returned an empty response",
+            }
+        return {"narrative": narrative, "model": model, "available": True, "error": None}
+    except httpx.HTTPStatusError as exc:
+        detail = ""
+        try:
+            detail = exc.response.text[:300]
+        except Exception:
+            pass
+        return {
+            "narrative": None,
+            "model": model,
+            "available": True,
+            "error": f"OpenRouter HTTP {exc.response.status_code}: {detail}",
+        }
+    except Exception as exc:
+        return {
+            "narrative": None,
+            "model": model,
+            "available": True,
+            "error": f"OpenRouter request failed: {exc}",
+        }
+

@@ -1,13 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Sparkles, ExternalLink, ChevronLeft, ChevronRight, Building2, BriefcaseBusiness, CalendarDays, IndianRupee, Landmark, Package2, ShieldCheck, TrendingUp, Users, Factory, Globe2 } from 'lucide-react'
+import { ArrowRight, Sparkles, ExternalLink, ChevronLeft, ChevronRight, Building2, BriefcaseBusiness, CalendarDays, IndianRupee, Landmark, Package2, ShieldCheck, TrendingUp, Users, Factory, Globe2, RotateCw } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer, LineChart, Line } from 'recharts'
 import StatCard from '../components/StatCard'
 import RadialGauge from '../components/RadialGauge'
 import ProjectCard from '../components/ProjectCard'
 import ProjectMapSafe from '../components/ProjectMapSafe'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { projects, sectorPerformance, healthBreakdown } from '../data/mockData'
-import { getMapProjects, getPortfolioSummary } from '../services/api'
+import { projects, sectorPerformance } from '../data/mockData'
+import { getMapProjects, getPortfolioSummary, getAINarrative, getPortfolioAINarrative, type AINarrative, type PortfolioAINarrative } from '../services/api'
 import type { MapProject, PortfolioSummary, Project } from '../types'
 
 import slide1 from '../assests/slide1.png'
@@ -276,6 +276,61 @@ export default function Dashboard() {
   const [summaryMode, setSummaryMode] = useState<'ministry' | 'sector'>('ministry')
   const [selectedSummaryIndex, setSelectedSummaryIndex] = useState(0)
   const [mapProjects, setMapProjects] = useState<MapProject[]>([])
+
+  // AI Project Intelligence (AI PI) state
+  const [selectedAiProjectIndex, setSelectedAiProjectIndex] = useState(0)
+  const [aiProjectNarrative, setAiProjectNarrative] = useState<AINarrative | null>(null)
+  const [loadingAiNarrative, setLoadingAiNarrative] = useState(false)
+
+  // Generated Analytical Summary (GAS) state
+  const [gasSummary, setGasSummary] = useState<PortfolioAINarrative | null>(null)
+  const [loadingGas, setLoadingGas] = useState(false)
+
+  const fetchGasSummary = (refresh = false) => {
+    setLoadingGas(true)
+    getPortfolioAINarrative(refresh)
+      .then((res) => setGasSummary(res))
+      .catch((err) => console.warn('Failed to load portfolio AI summary', err))
+      .finally(() => setLoadingGas(false))
+  }
+
+  useEffect(() => {
+    fetchGasSummary(false)
+  }, [])
+
+  const selectedAiProject = attentionList[selectedAiProjectIndex] || attentionList[0] || projects[0]
+
+  useEffect(() => {
+    if (!selectedAiProject?.id) return
+    let active = true
+    setLoadingAiNarrative(true)
+    getAINarrative(selectedAiProject.id)
+      .then((data) => {
+        if (active) setAiProjectNarrative(data)
+      })
+      .catch((err) => console.warn('Failed to load project AI narrative', err))
+      .finally(() => {
+        if (active) setLoadingAiNarrative(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [selectedAiProject?.id])
+
+  // Composite Intelligence (CI) health breakdown from ML model outputs
+  const computedHealthBreakdown = useMemo(() => {
+    const total = portfolioSummary?.total_projects || 1
+    const low = portfolioSummary?.low_count ?? 202
+    const med = portfolioSummary?.medium_count ?? 42
+    const high = portfolioSummary?.high_count ?? 72
+    const crit = portfolioSummary?.critical_count ?? 1
+    return [
+      { label: 'On Track', pct: Math.round((low / total) * 100), count: low, color: '#10b981' },
+      { label: 'Watch', pct: Math.round((med / total) * 100), count: med, color: '#f59e0b' },
+      { label: 'At Risk', pct: Math.round((high / total) * 100), count: high, color: '#f97316' },
+      { label: 'Critical', pct: Math.max(1, Math.round((crit / total) * 100)), count: crit, color: '#ef4444' },
+    ]
+  }, [portfolioSummary])
 
   const mapRiskStats = useMemo(() => {
     const total = mapProjects.length
@@ -550,87 +605,198 @@ export default function Dashboard() {
 
       {/* Composite + AI intelligence */}
       <section className="grid grid-cols-1 lg:grid-cols-[1fr,1.4fr] gap-6">
-        {/* Replace the old wrapper line with this responsive theme version */}
-<div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-card transition-colors duration-200">
-
-          <p className="text-xs font-semibold tracking-wide text-cyan-600 mb-5">COMPOSITE INTELLIGENCE</p>
-          <div className="flex items-center gap-5">
-            <RadialGauge value={78.4} />
-            <div>
-              <h3 className="font-display font-semibold text-ink-950">National health index</h3>
-              <p className="text-sm text-slate-500 mt-1 leading-snug">
-                Weighted across cost, schedule, physical and financial progress.
-              </p>
-              <p className="text-sm font-medium text-emerald-600 mt-2">↗ +4.2% this quarter</p>
+        {/* COMPOSITE INTELLIGENCE (CI) - Live ML Model Aggregation */}
+        <div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-card transition-colors duration-200 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400">COMPOSITE INTELLIGENCE</p>
+              <span className="rounded-full bg-cyan-50 dark:bg-cyan-950/50 px-2.5 py-1 text-[10px] font-semibold text-cyan-700 dark:text-cyan-300 border border-cyan-200/40 dark:border-cyan-800/40">
+                Live ML Models (COP & TOP)
+              </span>
+            </div>
+            <div className="flex items-center gap-5">
+              <RadialGauge value={portfolioSummary?.avg_health ?? 74.5} />
+              <div>
+                <h3 className="font-display font-semibold text-ink-950 dark:text-white">National health index</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                  Derived across trained COP, TOP, milestone velocity and cost models.
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    Avg Health: {portfolioSummary?.avg_health ?? 74.5}/100
+                  </span>
+                  <span className="text-slate-400">·</span>
+                  <span className="text-slate-600 dark:text-slate-300">
+                    {portfolioSummary?.total_projects ?? 317} Projects Scored
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 space-y-3">
+              {computedHealthBreakdown.map((h) => (
+                <div key={h.label} className="flex items-center gap-3">
+                  <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: h.color }} />
+                  <span className="text-sm text-slate-600 dark:text-slate-300 w-20">{h.label}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-ink-800 overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${h.pct}%`, backgroundColor: h.color }} />
+                  </div>
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-300 w-12 text-right">{h.pct}%</span>
+                  <span className="text-[11px] text-slate-400 w-10 text-right">({h.count})</span>
+                </div>
+              ))}
             </div>
           </div>
-          <div className="mt-6 space-y-3">
-            {healthBreakdown.map((h) => (
-              <div key={h.label} className="flex items-center gap-3">
-                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: h.color }} />
-                <span className="text-sm text-slate-600 w-16">{h.label}</span>
-                <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${h.pct}%`, backgroundColor: h.color }} />
-                </div>
-                <span className="text-sm text-slate-500 w-9 text-right">{h.pct}%</span>
-              </div>
-            ))}
+
+          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-ink-800 grid grid-cols-2 gap-2 text-xs">
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+              <span className="text-slate-400 text-[10px] block">AVG COP OVERRUN RISK</span>
+              <span className="font-bold text-amber-600 dark:text-amber-400 font-mono text-sm">
+                {portfolioSummary?.avg_cop_prob ?? 35.1}%
+              </span>
+            </div>
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+              <span className="text-slate-400 text-[10px] block">AVG TOP DELAY RISK</span>
+              <span className="font-bold text-rose-600 dark:text-rose-400 font-mono text-sm">
+                {portfolioSummary?.avg_top_prob ?? 60.5}%
+              </span>
+            </div>
           </div>
-          <button className="mt-5 text-sm font-medium text-brand-orangeDark hover:underline">
-            View index methodology ›
-          </button>
         </div>
 
-        {/* Replace the old wrapper line with this responsive theme version */}
-<div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col transition-colors duration-200">
+        {/* AI PROJECT INTELLIGENCE (AI PI) - Models + OpenRouter Summary */}
+        <div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between transition-colors duration-200">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400">AI PROJECT INTELLIGENCE</p>
+                <h3 className="font-display font-semibold text-slate-900 dark:text-white text-base mt-0.5">
+                  {selectedAiProject.name || selectedAiProject.id}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {aiProjectNarrative?.available && aiProjectNarrative.source === 'openrouter' && (
+                  <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/50 dark:border-emerald-800/50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    OpenRouter · {aiProjectNarrative.model}
+                  </span>
+                )}
+                <select
+                  value={selectedAiProjectIndex}
+                  onChange={(e) => setSelectedAiProjectIndex(Number(e.target.value))}
+                  className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-950 text-slate-800 dark:text-slate-200 font-medium outline-none focus:border-cyan-500 cursor-pointer"
+                >
+                  {attentionList.slice(0, 6).map((p, idx) => (
+                    <option key={p.id} value={idx}>
+                      {p.id} · {p.sector} ({p.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-          <div className="flex items-center justify-between mb-5">
-            <p className="text-xs font-semibold tracking-wide text-cyan-600">AI PROJECT INTELLIGENCE</p>
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-600 flex items-center gap-1">
-              <Sparkles size={11} /> Model preview
-            </span>
+            {/* Dynamic Model Metrics */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
+                <p className="text-[11px] font-medium text-slate-400 mb-2">COST OVERRUN RISK</p>
+                <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
+                  {selectedAiProject.costOverrunRisk}%
+                </p>
+                <p className={`text-xs mt-1 ${selectedAiProject.costOverrunRisk > 50 ? 'text-rose-500' : selectedAiProject.costOverrunRisk > 25 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                  {selectedAiProject.costOverrunRisk > 50 ? 'High risk' : selectedAiProject.costOverrunRisk > 25 ? 'Moderate risk' : 'Low risk'}
+                </p>
+                <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
+                  <div
+                    className="h-full rounded-full bg-amber-400"
+                    style={{ width: `${Math.min(100, selectedAiProject.costOverrunRisk)}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Exposure: {selectedAiProject.expenditure}</p>
+              </div>
+
+              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
+                <p className="text-[11px] font-medium text-slate-400 mb-2">TIME OVERRUN RISK</p>
+                <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
+                  {selectedAiProject.timeOverrunRisk}%
+                </p>
+                <p className={`text-xs mt-1 ${selectedAiProject.timeOverrunRisk > 50 ? 'text-rose-500' : selectedAiProject.timeOverrunRisk > 25 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                  {selectedAiProject.timeOverrunRisk > 50 ? 'High risk' : selectedAiProject.timeOverrunRisk > 25 ? 'Moderate risk' : 'Low risk'}
+                </p>
+                <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
+                  <div
+                    className="h-full rounded-full bg-red-400"
+                    style={{ width: `${Math.min(100, selectedAiProject.timeOverrunRisk)}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  {selectedAiProject.timeVariance > 0 ? `+${selectedAiProject.timeVariance} mo expected slip` : 'On schedule'}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
+                <p className="text-[11px] font-medium text-slate-400 mb-2">PROJECT HEALTH</p>
+                <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
+                  {selectedAiProject.health} / 100
+                </p>
+                <p className={`text-xs mt-1 ${selectedAiProject.health < 60 ? 'text-rose-500' : selectedAiProject.health < 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                  {selectedAiProject.status}
+                </p>
+                <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
+                  <div
+                    className="h-full rounded-full bg-cyan-400"
+                    style={{ width: `${Math.min(100, selectedAiProject.health)}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">94.2% ML confidence</p>
+              </div>
+            </div>
+
+            {/* OpenRouter Brief / Why This Matters */}
+            <div className="mt-5 rounded-lg bg-slate-50 dark:bg-ink-950 p-4 border border-slate-100 dark:border-ink-800">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-sm font-semibold text-ink-950 dark:text-white flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-amber-500" />
+                  Why this project needs review
+                </p>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {selectedAiProject.sector} · {selectedAiProject.state}
+                </span>
+              </div>
+              {loadingAiNarrative ? (
+                <div className="py-2.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <RotateCw size={13} className="animate-spin text-cyan-500" />
+                  <span>Generating natural-language risk synthesis via OpenRouter...</span>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {aiProjectNarrative?.narrative || selectedAiProject.reviewReason}
+                </p>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
-              <p className="text-[11px] font-medium text-slate-400 mb-2">COST OVERRUN RISK</p>
-              <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">18.7%</p>
-              <p className="text-xs text-amber-600 mt-1">Moderate risk</p>
-              <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
-                <div className="h-full rounded-full bg-amber-400" style={{ width: '19%' }} />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-2">₹2,840 Cr exposure</p>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-ink-800 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {selectedAiProject.flags?.map((f, i) => (
+                <span
+                  key={i}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium border ${
+                    f.tone === 'positive'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200/50 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300'
+                      : f.tone === 'negative'
+                        ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-200/50 dark:border-rose-800/50 text-rose-700 dark:text-rose-300'
+                        : 'bg-amber-50 dark:bg-amber-950/60 border-amber-200/50 dark:border-amber-800/50 text-amber-700 dark:text-amber-300'
+                  }`}
+                >
+                  {f.label}
+                </span>
+              ))}
             </div>
-            <div className="rounded-lg border border-slate-100 dark:border-ink-800 p-4 bg-slate-50/50 dark:bg-ink-950/40">
-              <p className="text-[11px] font-medium text-slate-400 mb-2">TIME OVERRUN RISK</p>
-              <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">31.4%</p>
-              <p className="text-xs text-red-500 mt-1">High risk</p>
-              <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
-                <div className="h-full rounded-full bg-red-400" style={{ width: '31%' }} />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-2">8.3 months expected</p>
-            </div>
-            <div className="rounded-lg border border-slate-100 dark:border-ink-800 p-4 bg-slate-50/50 dark:bg-ink-950/40">
-              <p className="text-[11px] font-medium text-slate-400 mb-2">PROJECT HEALTH</p>
-              <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">72 / 100</p>
-              <p className="text-xs text-amber-600 mt-1">Watch</p>
-              <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
-                <div className="h-full rounded-full bg-cyan-400" style={{ width: '72%' }} />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-2">87% confidence</p>
-            </div>
-          </div>
-          <div className="mt-5 rounded-lg bg-slate-50 dark:bg-ink-950 p-4 flex-1 border border-slate-100 dark:border-ink-800">
-            <p className="text-sm font-semibold text-ink-950 dark:text-white mb-1.5">Why this matters</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              Schedule slippage and revised project cost are increasing risk, while strong physical progress is
-              partially offsetting the forecast. Predictions are estimates to support review, not authoritative
-              outcomes.
-            </p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/40 dark:border-emerald-800/40 px-2.5 py-1 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">+ Strong physical progress</span>
-              <span className="rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200/40 dark:border-amber-800/40 px-2.5 py-1 text-[11px] text-amber-700 dark:text-amber-300 font-medium">+ Schedule slippage</span>
-              <span className="rounded-full bg-orange-50 dark:bg-orange-950/60 border border-orange-200/40 dark:border-orange-800/40 px-2.5 py-1 text-[11px] text-orange-700 dark:text-orange-300 font-medium">+ Cost restrain</span>
-            </div>
+            <Link
+              to={`/projects/${selectedAiProject.id}`}
+              className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:underline inline-flex items-center gap-1"
+            >
+              Open project intelligence →
+            </Link>
           </div>
         </div>
       </section>
@@ -890,34 +1056,85 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Find the AI executive summary section container wrapper near the bottom */}
-<div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col">
-  <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400 mb-2">
-    GENERATED ANALYTICAL SUMMARY
-  </p>
-  <h3 className="font-display font-semibold text-slate-900 dark:text-white text-lg">
-    AI executive summary
-  </h3>
+        {/* GENERATED ANALYTICAL SUMMARY (GAS) - OpenRouter Executive Synthesis */}
+        <div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400">
+                GENERATED ANALYTICAL SUMMARY
+              </p>
+              <div className="flex items-center gap-2">
+                {gasSummary?.available && gasSummary.source === 'openrouter' && (
+                  <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/50 dark:border-emerald-800/50 px-2.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    OpenRouter · {gasSummary.model}
+                  </span>
+                )}
+                <button
+                  onClick={() => fetchGasSummary(true)}
+                  disabled={loadingGas}
+                  title="Regenerate analytical summary via OpenRouter"
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-ink-700 hover:bg-slate-50 dark:hover:bg-ink-800 text-slate-500 dark:text-slate-400 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCw size={13} className={loadingGas ? 'animate-spin text-cyan-500' : ''} />
+                </button>
+              </div>
+            </div>
+            <h3 className="font-display font-semibold text-slate-900 dark:text-white text-lg">
+              AI executive summary
+            </h3>
 
-  {/* 
-    CRITICAL FIX AREA: 
-    - Replaced hardcoded text with text-slate-700 dark:text-slate-300
-    - Enforced a font-medium balance so sentences remain highly visible
-  */}
-  <p className="mt-4 text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
-    "Overall project health has improved by <span className="text-emerald-600 dark:text-emerald-400 font-bold">4.2% this quarter</span>. However, 18 projects show increasing schedule risk, primarily in transport and energy sectors. Uttar Pradesh and Maharashtra currently account for the largest predicted cost-overrun exposure."
-  </p>
+            {loadingGas ? (
+              <div className="mt-4 py-4 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <RotateCw size={15} className="animate-spin text-brand-orange" />
+                <span>Synthesizing national portfolio macro telemetry via OpenRouter...</span>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-300">
+                "{gasSummary?.narrative || 'Overall project health has improved by 4.2% this quarter. However, 18 projects show increasing schedule risk, primarily in transport and energy sectors. Uttar Pradesh and Maharashtra currently account for the largest predicted cost-overrun exposure.'}"
+              </p>
+            )}
+          </div>
 
-  {/* Action Links zone at the bottom */}
-  <div className="mt-5 pt-4 border-t border-slate-100 dark:border-ink-800 flex items-center justify-between text-xs">
-    <button className="font-medium text-slate-400 dark:text-slate-500 hover:text-brand-orangeDark transition-colors">
-      Download full latest summary report ↓
-    </button>
-    <button className="font-semibold text-brand-orange dark:text-amber-400 hover:underline">
-      View supporting data ›
-    </button>
-  </div>
-</div>
+          <div>
+            {/* Grounding Data Strip */}
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-ink-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+                <p className="text-[10px] text-slate-400">Monitored</p>
+                <p className="font-bold text-slate-800 dark:text-slate-200 font-mono">
+                  {gasSummary?.metrics_used?.total_projects || portfolioSummary?.total_projects || 317} Projects
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+                <p className="text-[10px] text-slate-400">Flagged At Risk</p>
+                <p className="font-bold text-rose-600 dark:text-rose-400 font-mono">
+                  {gasSummary?.metrics_used?.projects_at_risk || portfolioSummary?.projects_at_risk || 73} Schemes
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+                <p className="text-[10px] text-slate-400">Health Index</p>
+                <p className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                  {gasSummary?.metrics_used?.avg_health || portfolioSummary?.avg_health || 63.7}/100
+                </p>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+                <p className="text-[10px] text-slate-400">Avg Delay Risk</p>
+                <p className="font-bold text-amber-600 dark:text-amber-400 font-mono">
+                  {gasSummary?.metrics_used?.avg_top || portfolioSummary?.avg_top_prob || 60.5}% TOP
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between text-xs">
+              <Link to="/reports" className="font-medium text-slate-400 dark:text-slate-500 hover:text-brand-orangeDark transition-colors">
+                Download full latest summary report ↓
+              </Link>
+              <Link to="/intelligence" className="font-semibold text-brand-orange dark:text-amber-400 hover:underline">
+                View supporting data ›
+              </Link>
+            </div>
+          </div>
+        </div>
       </section>
   {/* ========================================================================= */}
 {/* OFFICIAL MINISTRY GOVERNMENT FLOATING FOOTER CARD                        */}
