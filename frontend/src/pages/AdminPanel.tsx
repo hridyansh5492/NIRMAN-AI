@@ -26,6 +26,7 @@ import {
   assignContractor,
   registerProject,
   getAdminAudits,
+  reviewAdminAudit,
   setAdminGeofence,
 } from '../services/api'
 import { stateCentroids } from '../data/stateCentroids'
@@ -119,7 +120,9 @@ export default function AdminPanel() {
   // Audits Tab state
   const [audits, setAudits] = useState<any[]>([])
   const [loadingAudits, setLoadingAudits] = useState<boolean>(false)
-  const [auditFilter, setAuditFilter] = useState<'all' | 'approved' | 'rejected'>('all')
+  const [auditFilter, setAuditFilter] = useState<'all' | 'auto_approved' | 'approved' | 'rejected'>('all')
+  const [reviewingId, setReviewingId] = useState<string | null>(null)
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null)
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null)
 
   // Load contractors and initial state projects
@@ -247,11 +250,49 @@ export default function AdminPanel() {
     }
   }
 
+  // Manual Review Handler for Admin Audits
+  const handleManualReview = async (submissionId: string, newStatus: 'approved' | 'rejected') => {
+    setReviewingId(submissionId)
+    setReviewMessage(null)
+    try {
+      await reviewAdminAudit(submissionId, newStatus)
+      setAudits((prev) =>
+        prev.map((item) => {
+          if (item.submission_id === submissionId) {
+            return {
+              ...item,
+              verification_status: `manually_${newStatus}`,
+              counts_towards_progress: newStatus === 'approved' ? 1 : 0,
+              inside_geofence: newStatus === 'approved' ? 1 : 0,
+            }
+          }
+          return item
+        })
+      )
+      setReviewMessage(`Report #${submissionId} successfully marked as ${newStatus.toUpperCase()}.`)
+      setTimeout(() => setReviewMessage(null), 4000)
+    } catch (err) {
+      console.error('Manual review failed', err)
+      alert(err instanceof Error ? err.message : 'Failed to update review status')
+    } finally {
+      setReviewingId(null)
+    }
+  }
+
   // Filtered audits
   const filteredAudits = useMemo(() => {
-    if (auditFilter === 'approved') return audits.filter((a) => a.inside_geofence === 1)
-    if (auditFilter === 'rejected') return audits.filter((a) => a.inside_geofence === 0)
-    return audits
+    return audits.filter((a) => {
+      const isInside = a.inside_geofence === 1
+      const vStat = a.verification_status || (isInside ? 'accepted' : 'rejected')
+      const isManuallyApproved = vStat === 'manually_approved'
+      const isManuallyRejected = vStat === 'manually_rejected'
+      const isAutoApproved = (vStat === 'accepted' || vStat === 'auto_approved' || isInside) && !isManuallyApproved && !isManuallyRejected
+
+      if (auditFilter === 'auto_approved') return isAutoApproved
+      if (auditFilter === 'approved') return isManuallyApproved || isAutoApproved
+      if (auditFilter === 'rejected') return isManuallyRejected || (!isInside && !isManuallyApproved)
+      return true
+    })
   }, [audits, auditFilter])
 
   // Non-admin guard banner
@@ -853,23 +894,31 @@ export default function AdminPanel() {
       {activeTab === 'audits' && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-ink-900 p-4 rounded-2xl border border-slate-200 dark:border-ink-800 shadow-sm">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Filter Audits:
               </span>
-              {(['all', 'approved', 'rejected'] as const).map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setAuditFilter(filter)}
-                  className={`px-3 py-1 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${
-                    auditFilter === filter
-                      ? 'bg-cyan-600 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-ink-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                  }`}
-                >
-                  {filter}
-                </button>
-              ))}
+              {(['all', 'auto_approved', 'approved', 'rejected'] as const).map((filter) => {
+                const labels = {
+                  all: 'All Audits',
+                  auto_approved: 'Auto-Approved Only',
+                  approved: 'Approved',
+                  rejected: 'Rejected',
+                }
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => setAuditFilter(filter)}
+                    className={`px-3 py-1 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${
+                      auditFilter === filter
+                        ? 'bg-cyan-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-ink-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-ink-700'
+                    }`}
+                  >
+                    {labels[filter]}
+                  </button>
+                )
+              })}
             </div>
 
             <div className="flex items-center gap-2">
@@ -883,6 +932,19 @@ export default function AdminPanel() {
               <span className="text-xs text-slate-400">Total: {filteredAudits.length} records</span>
             </div>
           </div>
+
+          {/* Action Notification Banner */}
+          {reviewMessage && (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>{reviewMessage}</span>
+              </div>
+              <button onClick={() => setReviewMessage(null)} className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 cursor-pointer p-1">
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {loadingAudits ? (
             <div className="p-12 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
@@ -903,14 +965,20 @@ export default function AdminPanel() {
                       <th className="px-4 py-3 font-semibold">Submission ID</th>
                       <th className="px-4 py-3 font-semibold">Project & Contractor</th>
                       <th className="px-4 py-3 font-semibold">Claimed Progress</th>
-                      <th className="px-4 py-3 font-semibold">Geofence Status</th>
+                      <th className="px-4 py-3 font-semibold">Verification Status</th>
                       <th className="px-4 py-3 font-semibold">AI Intelligence Brief</th>
                       <th className="px-4 py-3 font-semibold">Submitted At</th>
+                      <th className="px-4 py-3 font-semibold text-right">Manual Admin Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-ink-800">
                     {filteredAudits.map((a) => {
                       const isInside = a.inside_geofence === 1
+                      const vStat = a.verification_status || (isInside ? 'accepted' : 'rejected')
+                      const isManuallyApproved = vStat === 'manually_approved'
+                      const isManuallyRejected = vStat === 'manually_rejected'
+                      const isAutoApproved = (vStat === 'accepted' || vStat === 'auto_approved' || isInside) && !isManuallyApproved && !isManuallyRejected
+
                       let aiIntel: any = null
                       try {
                         if (a.ai_intelligence_json) {
@@ -948,16 +1016,27 @@ export default function AdminPanel() {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                isInside
-                                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                                  : 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                              }`}
-                            >
-                              {isInside ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
-                              {isInside ? 'APPROVED' : 'REJECTED'}
-                            </span>
+                            {isManuallyApproved ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                <CheckCircle2 size={12} />
+                                MANUALLY APPROVED
+                              </span>
+                            ) : isManuallyRejected ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                <AlertTriangle size={12} />
+                                MANUALLY REJECTED
+                              </span>
+                            ) : isAutoApproved ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800">
+                                <CheckCircle2 size={12} />
+                                AUTO-APPROVED
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                <AlertTriangle size={12} />
+                                GEOFENCE BREACH
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 max-w-xs">
                             {aiIntel ? (
@@ -972,6 +1051,41 @@ export default function AdminPanel() {
                           </td>
                           <td className="px-4 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">
                             {a.submitted_at ? a.submitted_at.replace('T', ' ').substring(0, 19) : ''}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {reviewingId === a.submission_id ? (
+                              <div className="flex items-center justify-end gap-1 text-slate-400">
+                                <RefreshCw size={13} className="animate-spin text-cyan-600" />
+                                <span className="text-[10px]">Updating...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleManualReview(a.submission_id, 'approved')}
+                                  disabled={isManuallyApproved}
+                                  title="Manually Approve Report"
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                    isManuallyApproved
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border border-emerald-300 dark:border-emerald-800/40 opacity-70 cursor-default'
+                                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm active:scale-95'
+                                  }`}
+                                >
+                                  {isManuallyApproved ? 'Approved ✓' : 'Approve'}
+                                </button>
+                                <button
+                                  onClick={() => handleManualReview(a.submission_id, 'rejected')}
+                                  disabled={isManuallyRejected}
+                                  title="Manually Reject Report"
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                    isManuallyRejected
+                                      ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 border border-rose-300 dark:border-rose-800/40 opacity-70 cursor-default'
+                                      : 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm active:scale-95'
+                                  }`}
+                                >
+                                  {isManuallyRejected ? 'Rejected ✗' : 'Reject'}
+                                </button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )

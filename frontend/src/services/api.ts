@@ -703,6 +703,31 @@ export async function getAdminAudits(limit: number = 100): Promise<any[]> {
   }
 }
 
+export async function reviewAdminAudit(
+  submissionId: string,
+  status: 'approved' | 'rejected',
+  notes?: string
+): Promise<any> {
+  const res = await fetch(`${BASE_URL}/api/admin/audits/${encodeURIComponent(submissionId)}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      status,
+      reviewer_notes: notes || `Manually marked as ${status} by Admin`,
+      reviewer_name: 'Director General (Admin)',
+    }),
+  })
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`
+    try {
+      const d = await res.json()
+      if (d.detail) msg = d.detail
+    } catch {}
+    throw new Error(msg)
+  }
+  return await res.json()
+}
+
 export async function registerProject(projectData: any): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/projects`, {
     method: 'POST',

@@ -1742,6 +1742,77 @@ def admin_audits(limit: int = 100):
         conn_admin.close()
 
 
+class AuditReviewRequest(BaseModel):
+    status: str  # "approved" or "rejected"
+    reviewer_notes: Optional[str] = None
+    reviewer_name: Optional[str] = "Director General (Admin)"
+
+
+@app.post("/api/admin/audits/{submission_id}/review")
+def review_audit(submission_id: str, req: AuditReviewRequest):
+    _ensure_contractor_schema()
+    new_status = req.status.strip().lower()
+    if new_status not in ("approved", "rejected"):
+        raise HTTPException(status_code=400, detail="Status must be 'approved' or 'rejected'")
+
+    counts_val = 1 if new_status == "approved" else 0
+    stat_val = f"manually_{new_status}"
+    review_time = datetime.utcnow().isoformat() + "Z"
+
+    conn_rp = db_manager.get_reports_photos_conn()
+    try:
+        cur = conn_rp.cursor()
+        cur.execute("SELECT id, project_id, physical_progress_pct, details_json FROM contractor_progress_reports WHERE submission_id = ?", (submission_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Submission {submission_id} not found")
+
+        rep_id, project_id, phys_pct, details_str = row
+        details = {}
+        try:
+            if details_str:
+                details = json.loads(details_str)
+        except Exception:
+            pass
+
+        details["manual_review"] = {
+            "reviewed_by": req.reviewer_name or "Director General (Admin)",
+            "reviewed_at": review_time,
+            "status": new_status,
+            "notes": req.reviewer_notes or f"Manually {new_status} by Admin",
+        }
+
+        cur.execute("""
+        UPDATE contractor_progress_reports
+        SET verification_status = ?, counts_towards_progress = ?, details_json = ?
+        WHERE submission_id = ?
+        """, (stat_val, counts_val, json.dumps(details), submission_id))
+        conn_rp.commit()
+    finally:
+        conn_rp.close()
+
+    # Mirror update to project_monitoring.db if present
+    try:
+        with db_manager.get_core_conn() as c_core:
+            c_core.execute("""
+            UPDATE contractor_progress_reports
+            SET verification_status = ?, counts_towards_progress = ?
+            WHERE submission_id = ?
+            """, (stat_val, counts_val, submission_id))
+            c_core.commit()
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "submission_id": submission_id,
+        "verification_status": stat_val,
+        "counts_towards_progress": counts_val,
+        "reviewed_at": review_time,
+        "message": f"Submission {submission_id} successfully marked as {new_status.upper()}."
+    }
+
+
 @app.get("/api/notifications")
 def get_notifications(role: str = "guest", contractor_id: Optional[str] = None):
     """Role-segregated notification feed:
@@ -1777,25 +1848,27 @@ def get_notifications(role: str = "guest", contractor_id: Optional[str] = None):
             notifs = []
             for r in rows:
                 sub_id, pid, cid_val, phys, inside, v_stat, sub_at, notes_val, det_json, intel_json = r
-                if inside == 1:
+                if v_stat == "manually_approved" or (inside == 1 and v_stat != "manually_rejected"):
+                    is_manual = v_stat == "manually_approved"
                     notifs.append({
                         "id": f"notif-{sub_id}",
                         "submission_id": sub_id,
                         "project_id": pid,
-                        "title": f"Report Approved: {pid}",
-                        "message": f"On-site photo verified within designated construction lamina. Progress updated to {phys}%. AI intelligence updated.",
+                        "title": f"Report {'Manually ' if is_manual else ''}Approved: {pid}",
+                        "message": f"{'Admin manually verified and approved this submission.' if is_manual else 'On-site photo verified within designated construction lamina.'} Progress updated to {phys}%. AI intelligence updated.",
                         "status": "approved",
                         "tone": "green",
                         "time": sub_at,
                         "progress": phys,
                     })
                 else:
+                    is_manual = v_stat == "manually_rejected"
                     notifs.append({
                         "id": f"notif-{sub_id}",
                         "submission_id": sub_id,
                         "project_id": pid,
-                        "title": f"Report NOT Approved: {pid}",
-                        "message": f"GEOFENCE BREACH: Submission captured outside designated construction lamina. Progress does NOT count towards project metrics.",
+                        "title": f"Report {'Manually ' if is_manual else ''}NOT Approved: {pid}",
+                        "message": f"{'Admin manually rejected this submission upon audit review.' if is_manual else 'GEOFENCE BREACH: Submission captured outside designated construction lamina.'} Progress does NOT count towards project metrics.",
                         "status": "not_approved",
                         "tone": "red",
                         "time": sub_at,
@@ -1815,29 +1888,31 @@ def get_notifications(role: str = "guest", contractor_id: Optional[str] = None):
             for r in rows:
                 sub_id, pid, cid_val, phys, inside, v_stat, sub_at, notes_val, det_json, intel_json = r
                 c_name = c_names.get(cid_val, cid_val)
-                if inside == 1:
+                if v_stat == "manually_approved" or (inside == 1 and v_stat != "manually_rejected"):
+                    is_manual = v_stat == "manually_approved"
                     notifs.append({
                         "id": f"notif-adm-{sub_id}",
                         "submission_id": sub_id,
                         "project_id": pid,
                         "contractor_id": cid_val,
                         "contractor_name": c_name,
-                        "title": f"Verified Submission: {pid}",
-                        "message": f"{c_name} submitted on-site evidence for {pid}. Verified within construction lamina (Progress: {phys}%). ML intelligence updated.",
+                        "title": f"{'Manually Verified' if is_manual else 'Verified Submission'}: {pid}",
+                        "message": f"{c_name} report for {pid} {'manually approved by admin' if is_manual else 'verified within construction lamina'} (Progress: {phys}%). ML intelligence updated.",
                         "status": "approved",
                         "tone": "green",
                         "time": sub_at,
                         "progress": phys,
                     })
                 else:
+                    is_manual = v_stat == "manually_rejected"
                     notifs.append({
                         "id": f"notif-adm-{sub_id}",
                         "submission_id": sub_id,
                         "project_id": pid,
                         "contractor_id": cid_val,
                         "contractor_name": c_name,
-                        "title": f"GEOFENCE ALERT: {pid}",
-                        "message": f"Contractor {c_name} submitted photo outside designated geofence lamina for {pid}. Automatically rejected.",
+                        "title": f"{'MANUAL REJECTION' if is_manual else 'GEOFENCE ALERT'}: {pid}",
+                        "message": f"{c_name} report for {pid} {'rejected by manual admin review' if is_manual else 'flagged outside construction zone'}. Progress discounted.",
                         "status": "not_approved",
                         "tone": "red",
                         "time": sub_at,

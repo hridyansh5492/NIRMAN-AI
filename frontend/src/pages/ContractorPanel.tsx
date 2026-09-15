@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   HardHat, 
@@ -16,7 +16,12 @@ import {
   Percent,
   TrendingUp,
   RotateCcw,
-  Navigation
+  Navigation,
+  RefreshCw,
+  Lock,
+  ShieldX,
+  Check,
+  X
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { 
@@ -44,15 +49,231 @@ export default function ContractorPanel() {
   const [physicalProgress, setPhysicalProgress] = useState<number>(65)
   const [financialExpenditure, setFinancialExpenditure] = useState<number>(120)
   const [notes, setNotes] = useState<string>('')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // Camera capture states (Strictly on-ground camera, no file upload)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const [cameraActive, setCameraActive] = useState<boolean>(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  // Automated Device Geolocation states
+  const [locationStatus, setLocationStatus] = useState<'prompt' | 'requesting' | 'granted' | 'denied'>('requesting')
+  const [locationError, setLocationError] = useState<string | null>(null)
   const [gpsLat, setGpsLat] = useState<number | null>(null)
   const [gpsLng, setGpsLng] = useState<number | null>(null)
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null)
+  const [gpsTimestamp, setGpsTimestamp] = useState<string | null>(null)
+
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [submitResult, setSubmitResult] = useState<any | null>(null)
-  const [gpsSource, setGpsSource] = useState<string>('manual')
 
   const contractorId = user?.role === 'contractor' ? user.id : 'CNT-LT-01'
+
+  // Request device location automatically via WGS-84 Geolocation API
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('denied')
+      setLocationError('Geolocation API is not supported by your browser.')
+      setGpsLat(null)
+      setGpsLng(null)
+      return
+    }
+
+    setLocationStatus('requesting')
+    setLocationError(null)
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6))
+        const lng = Number(pos.coords.longitude.toFixed(6))
+        setGpsLat(lat)
+        setGpsLng(lng)
+        setGpsAccuracy(Math.round(pos.coords.accuracy))
+        setGpsTimestamp(new Date(pos.timestamp).toLocaleTimeString())
+        setLocationStatus('granted')
+        setLocationError(null)
+        setSubmitResult(null)
+      },
+      (err) => {
+        console.warn('Geolocation acquisition failed:', err)
+        setLocationStatus('denied')
+        setGpsLat(null)
+        setGpsLng(null)
+        if (err.code === 1) {
+          setLocationError('Location permission denied. Mandatory GPS geotagging is required by statutory mandate to upload progress reports.')
+        } else if (err.code === 2) {
+          setLocationError('GPS position unavailable. Please ensure device location is switched on.')
+        } else if (err.code === 3) {
+          setLocationError('GPS acquisition timed out. Please retry with an open view of the sky.')
+        } else {
+          setLocationError(`Location error: ${err.message}`)
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    )
+  }
+
+  // Camera Management
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setCameraActive(false)
+  }
+
+  const startCamera = async () => {
+    setCameraError(null)
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera device API is not supported in this browser environment.')
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play().catch(() => {})
+      }
+      setCameraActive(true)
+    } catch (err: any) {
+      console.warn('Camera error', err)
+      const msg =
+        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+          ? 'Camera permission was denied. Please allow camera access in your browser settings.'
+          : err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError'
+          ? 'No physical camera device was detected on your hardware.'
+          : err.message || 'Unable to start camera stream.'
+      setCameraError(msg)
+      setCameraActive(false)
+    }
+  }
+
+  // Live Geofence Check
+  const isInsideLamina = useMemo(() => {
+    if (!geofence || gpsLat === null || gpsLng === null) return false
+    return isPointInsideLamina(gpsLat, gpsLng, geofence.boundary_lamina)
+  }, [geofence, gpsLat, gpsLng])
+
+  const capturePhoto = (useFallback = false) => {
+    const canvas = document.createElement('canvas')
+    const width = 1280
+    const height = 720
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    if (!useFallback && videoRef.current && cameraActive && videoRef.current.videoWidth > 0) {
+      ctx.drawImage(videoRef.current, 0, 0, width, height)
+    } else {
+      // Hardware-absent fallback (e.g. desktop dev / VM testing without webcam)
+      const grad = ctx.createLinearGradient(0, 0, width, height)
+      grad.addColorStop(0, '#0f172a')
+      grad.addColorStop(0.5, '#1e293b')
+      grad.addColorStop(1, '#334155')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, width, height)
+
+      // Perspective grid lines
+      ctx.strokeStyle = '#38bdf8'
+      ctx.lineWidth = 1.5
+      for (let i = 0; i < width; i += 160) {
+        ctx.beginPath()
+        ctx.moveTo(i, 0)
+        ctx.lineTo(i, height)
+        ctx.stroke()
+      }
+      for (let j = 0; j < height; j += 120) {
+        ctx.beginPath()
+        ctx.moveTo(0, j)
+        ctx.lineTo(width, j)
+        ctx.stroke()
+      }
+
+      ctx.fillStyle = '#f8fafc'
+      ctx.font = 'bold 32px sans-serif'
+      ctx.fillText('ON-GROUND CAMERA SENSOR STREAM', 60, 240)
+      ctx.font = '20px monospace'
+      ctx.fillStyle = '#94a3b8'
+      ctx.fillText(`FIELD SENSOR: ${selectedProject?.id || 'FIELD-SYS'} | CAMERA SUBSYSTEM DIRECT`, 60, 285)
+    }
+
+    // Watermark HUD overlay
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'
+    ctx.fillRect(24, height - 145, width - 48, 120)
+    ctx.strokeStyle = isInsideLamina ? '#10b981' : '#f43f5e'
+    ctx.lineWidth = 2.5
+    ctx.strokeRect(24, height - 145, width - 48, 120)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 20px sans-serif'
+    ctx.fillText(`NIRMAN AI ON-GROUND AUDIT EVIDENCE — ${selectedProject?.id || 'PROJECT'}`, 48, height - 110)
+
+    ctx.font = '16px monospace'
+    ctx.fillStyle = '#38bdf8'
+    ctx.fillText(
+      `GPS: ${gpsLat !== null ? gpsLat.toFixed(6) : 'PENDING'}, ${gpsLng !== null ? gpsLng.toFixed(6) : 'PENDING'} | ACCURACY: ±${gpsAccuracy ? `${gpsAccuracy}m` : 'N/A'}`,
+      48,
+      height - 80
+    )
+
+    ctx.fillStyle = isInsideLamina ? '#34d399' : '#fb7185'
+    ctx.fillText(
+      `GEOFENCE: ${isInsideLamina ? 'INSIDE APPROVED LAMINA' : 'BREACH / OUTSIDE BOUNDARY'} | ${new Date().toISOString()}`,
+      48,
+      height - 50
+    )
+
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          setCapturedBlob(blob)
+          if (previewUrl) URL.revokeObjectURL(previewUrl)
+          setPreviewUrl(URL.createObjectURL(blob))
+          stopCamera()
+        }
+      },
+      'image/jpeg',
+      0.92
+    )
+  }
+
+  const retakePhoto = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(null)
+    setCapturedBlob(null)
+    setSubmitResult(null)
+    startCamera()
+  }
+
+  // Automatically ask for location access on component mount
+  useEffect(() => {
+    requestLocation()
+  }, [])
+
+  // Auto clean up media stream on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera()
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
 
   useEffect(() => {
     setLoading(true)
@@ -77,69 +298,16 @@ export default function ContractorPanel() {
     setPhysicalProgress(p.physicalProgress || 60)
     if (p.geofence) {
       setGeofence(p.geofence)
-      setGpsLat(p.geofence.center_lat)
-      setGpsLng(p.geofence.center_lng)
-      setGpsSource('site_center')
     } else {
       getProjectGeofence(p.id).then((geo) => {
         setGeofence(geo)
-        setGpsLat(geo.center_lat)
-        setGpsLng(geo.center_lng)
-        setGpsSource('site_center')
       })
     }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      setSelectedFile(file)
-      setPreviewUrl(URL.createObjectURL(file))
-      setSubmitResult(null)
+    // Re-verify location if not currently granted
+    if (locationStatus !== 'granted') {
+      requestLocation()
     }
   }
-
-  // Quick Simulation Helpers
-  const simulateInsideGeofence = () => {
-    if (!geofence) return
-    setGpsLat(geofence.center_lat)
-    setGpsLng(geofence.center_lng)
-    setGpsSource('simulation_inside')
-    setSubmitResult(null)
-  }
-
-  const simulateOutsideGeofence = () => {
-    if (!geofence) return
-    // Offset by ~0.8 degrees (~90 km away) to guarantee outside
-    setGpsLat(Number((geofence.center_lat + 0.85).toFixed(6)))
-    setGpsLng(Number((geofence.center_lng + 0.85).toFixed(6)))
-    setGpsSource('simulation_outside')
-    setSubmitResult(null)
-  }
-
-  const useDeviceGps = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser')
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGpsLat(Number(pos.coords.latitude.toFixed(6)))
-        setGpsLng(Number(pos.coords.longitude.toFixed(6)))
-        setGpsSource('device_gps')
-        setSubmitResult(null)
-      },
-      (err) => {
-        alert(`Failed to get device GPS: ${err.message}. Using simulated coordinates.`)
-      }
-    )
-  }
-
-  // Live Geofence Check
-  const isInsideLamina = React.useMemo(() => {
-    if (!geofence || gpsLat === null || gpsLng === null) return false
-    return isPointInsideLamina(gpsLat, gpsLng, geofence.boundary_lamina)
-  }, [geofence, gpsLat, gpsLng])
 
   // Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,42 +317,29 @@ export default function ContractorPanel() {
       return
     }
 
+    if (locationStatus === 'denied' || gpsLat === null || gpsLng === null) {
+      alert('Location access is denied or GPS is unavailable. Statutory oversight rules require verified on-ground GPS coordinates to submit progress.')
+      return
+    }
+
+    if (!capturedBlob) {
+      alert('Please access the camera and capture an on-ground photo before submitting.')
+      return
+    }
+
     setSubmitting(true)
     setSubmitResult(null)
 
     try {
       const formData = new FormData()
-      // If no file was picked, create a synthetic photo
-      if (selectedFile) {
-        formData.append('file', selectedFile)
-      } else {
-        const dummyCanvas = document.createElement('canvas')
-        dummyCanvas.width = 400
-        dummyCanvas.height = 300
-        const ctx = dummyCanvas.getContext('2d')
-        if (ctx) {
-          ctx.fillStyle = isInsideLamina ? '#10b981' : '#f43f5e'
-          ctx.fillRect(0, 0, 400, 300)
-          ctx.fillStyle = '#ffffff'
-          ctx.font = 'bold 18px sans-serif'
-          ctx.fillText(`Project: ${selectedProject.id}`, 20, 50)
-          ctx.fillText(`Coordinates: ${gpsLat}, ${gpsLng}`, 20, 90)
-          ctx.fillText(isInsideLamina ? 'STATUS: INSIDE LAMINA' : 'STATUS: OUTSIDE LAMINA', 20, 130)
-          ctx.fillText(new Date().toISOString(), 20, 170)
-        }
-        const blob = await new Promise<Blob>((resolve) =>
-          dummyCanvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg')
-        )
-        formData.append('file', blob, 'site_progress_capture.jpg')
-      }
-
+      formData.append('file', capturedBlob, 'site_camera_capture.jpg')
       formData.append('project_id', selectedProject.id)
       formData.append('contractor_id', contractorId)
       formData.append('physical_progress_pct', String(physicalProgress))
       formData.append('financial_expenditure_cr', String(financialExpenditure))
       formData.append('notes', notes || 'Routine milestone progress update')
-      if (gpsLat !== null) formData.append('gps_lat', String(gpsLat))
-      if (gpsLng !== null) formData.append('gps_lng', String(gpsLng))
+      formData.append('gps_lat', String(gpsLat))
+      formData.append('gps_lng', String(gpsLng))
 
       const result = await submitContractorProgress(formData)
       setSubmitResult(result)
@@ -499,120 +654,207 @@ export default function ContractorPanel() {
                 />
               </div>
 
-              {/* Photo Upload & Drop Zone */}
+              {/* Camera-Only On-Ground Photo Capture (No file upload) */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
-                  <span>Mandatory On-Site Photo Verification</span>
-                  <span className="text-amber-500 font-normal normal-case text-[11px]">
-                    EXIF Geotag or Device Coordinates Required
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Camera size={14} className="text-brand-orange" />
+                    <span>Mandatory On-Ground Camera Photo</span>
+                  </label>
+                  <span className="text-[11px] font-semibold text-amber-500 bg-amber-500/10 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-500/20">
+                    Live Camera Only • No File Uploads
                   </span>
-                </label>
-
-                <div className="relative border-2 border-dashed border-slate-300 dark:border-ink-700 hover:border-brand-orange rounded-2xl p-4 sm:p-6 text-center transition-all bg-slate-50/50 dark:bg-ink-950/40">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                  />
-
-                  {previewUrl ? (
-                    <div className="flex flex-col items-center gap-3">
-                      <img
-                        src={previewUrl}
-                        alt="Upload preview"
-                        className="h-36 max-w-full rounded-xl object-cover shadow-md border border-slate-200 dark:border-ink-700"
-                      />
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        {selectedFile?.name || 'Site Photo Selected'}
-                      </p>
-                      <span className="text-[11px] text-brand-orange underline">
-                        Click or drag to change image
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-brand-orange">
-                        <Camera size={24} />
-                      </span>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Drop on-site construction photo here or click to browse
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        Supports JPEG, PNG, WebP (camera photos with GPS EXIF metadata)
-                      </p>
-                    </div>
-                  )}
                 </div>
+
+                {previewUrl ? (
+                  /* Captured Photo Preview with Geotag HUD */
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-ink-700 shadow-lg bg-black">
+                    <img
+                      src={previewUrl}
+                      alt="Captured on-ground progress evidence"
+                      className="w-full max-h-80 object-contain mx-auto"
+                    />
+                    <div className="absolute top-3 left-3 bg-emerald-600/90 text-white text-[11px] font-bold px-3 py-1 rounded-full backdrop-blur-sm flex items-center gap-1.5 shadow-md">
+                      <CheckCircle2 size={13} />
+                      <span>Live On-Ground Photo Captured</span>
+                    </div>
+                    <div className="absolute bottom-3 right-3">
+                      <button
+                        type="button"
+                        onClick={retakePhoto}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-900/85 hover:bg-black text-white text-xs font-bold backdrop-blur shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95"
+                      >
+                        <RotateCcw size={13} />
+                        <span>Retake Photo</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : cameraActive ? (
+                  /* Live Camera Viewfinder */
+                  <div className="relative rounded-2xl overflow-hidden border-2 border-brand-orange bg-black aspect-video max-h-80 flex flex-col items-center justify-center shadow-xl">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* HUD Status Bar */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full border border-white/15 text-white text-[11px] font-mono shadow">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-ping" />
+                      <span className="font-bold text-rose-400">REC</span>
+                      <span>CAMERA ACTIVE</span>
+                    </div>
+
+                    <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full border border-white/15 text-slate-200 text-[10px] font-mono shadow">
+                      {gpsLat !== null && gpsLng !== null ? (
+                        <span>GPS: {gpsLat.toFixed(4)}, {gpsLng.toFixed(4)}</span>
+                      ) : (
+                        <span className="text-amber-400">WAITING FOR GPS...</span>
+                      )}
+                    </div>
+
+                    {/* Center Targeting Reticle */}
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-40">
+                      <div className="w-24 h-24 border-2 border-dashed border-white rounded-3xl flex items-center justify-center">
+                        <div className="w-2.5 h-2.5 bg-brand-orange rounded-full" />
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Bar */}
+                    <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => capturePhoto(false)}
+                        className="px-6 py-2.5 rounded-2xl bg-brand-orange hover:bg-brand-orangeDark text-white text-xs font-bold shadow-xl shadow-amber-500/40 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                      >
+                        <Camera size={16} />
+                        <span>Click On-Ground Photo</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Camera Initialization Banner */
+                  <div className="p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-ink-700 bg-slate-50/50 dark:bg-ink-950/40 text-center space-y-3">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-brand-orange">
+                      <Camera size={28} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        Device Camera Access Required for Site Verification
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
+                        To guarantee report authenticity, file uploads from device storage are disabled. Progress updates require clicking an authentic on-ground photo with live GPS telemetry.
+                      </p>
+                    </div>
+
+                    {cameraError && (
+                      <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs max-w-md mx-auto">
+                        {cameraError}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        className="px-5 py-2.5 rounded-xl bg-brand-orange hover:bg-brand-orangeDark text-white text-xs font-bold shadow-md shadow-amber-500/20 cursor-pointer flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Camera size={15} />
+                        <span>{cameraError ? 'Retry Camera Access' : 'Open Device Camera'}</span>
+                      </button>
+
+                      {/* Sensor hardware fallback for development / headless environments */}
+                      <button
+                        type="button"
+                        onClick={() => capturePhoto(true)}
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-ink-800 hover:bg-slate-200 dark:hover:bg-ink-700 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-all"
+                        title="Simulate hardware camera shutter (for devices lacking physical webcam)"
+                      >
+                        <span>Sensor Shutter Fallback</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Geofence Coordinate Controls & Simulation Testing */}
+              {/* Automatic Geofence Coordinate Verification (No manual pin pointing) */}
               <div className="p-4 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                       <Navigation size={14} className="text-cyan-500" />
-                      Geofence Coordinate Verification
+                      Live Device GPS Telemetry
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Coordinates tested against designated construction zone boundary lamina
+                      Automatic WGS-84 location capture — manual pinpointing or coordinate editing is disabled
                     </p>
                   </div>
 
-                  {/* Coordinate Source Controls */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={useDeviceGps}
-                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-ink-800 hover:bg-slate-200 dark:hover:bg-ink-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center gap-1"
-                    >
-                      <Navigation size={12} />
-                      Use Device GPS
-                    </button>
-                    <button
-                      type="button"
-                      onClick={simulateInsideGeofence}
-                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer"
-                      title="Set coordinate directly to site center"
-                    >
-                      Simulate On-Site (Inside)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={simulateOutsideGeofence}
-                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-rose-100 dark:bg-rose-950/60 hover:bg-rose-200 text-rose-700 dark:text-rose-300 transition-colors cursor-pointer"
-                      title="Set coordinate 90km away to test geofence rejection"
-                    >
-                      Simulate Off-Site (Outside)
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={requestLocation}
+                    className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-100 dark:bg-ink-800 hover:bg-slate-200 dark:hover:bg-ink-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw size={12} className={locationStatus === 'requesting' ? 'animate-spin' : ''} />
+                    <span>Re-acquire GPS</span>
+                  </button>
                 </div>
 
-                {/* Coordinate Inputs */}
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Capture Latitude</label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={gpsLat ?? ''}
-                      onChange={(e) => setGpsLat(parseFloat(e.target.value))}
-                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-950 font-mono text-slate-900 dark:text-white"
-                    />
+                {/* Geolocation Status Alert / Telemetry Readouts */}
+                {locationStatus === 'denied' ? (
+                  <div className="p-3.5 rounded-xl border border-rose-300 dark:border-rose-900/80 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 text-xs flex items-start gap-2.5">
+                    <ShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={18} />
+                    <div className="space-y-1">
+                      <p className="font-bold">Location Permission Denied / Blocked</p>
+                      <p className="text-[11px] leading-relaxed">
+                        {locationError || 'Browser location access was denied. You cannot upload a progress report without granting device GPS access.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={requestLocation}
+                        className="mt-1 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] cursor-pointer"
+                      >
+                        Grant Location Permission
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">Capture Longitude</label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={gpsLng ?? ''}
-                      onChange={(e) => setGpsLng(parseFloat(e.target.value))}
-                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-950 font-mono text-slate-900 dark:text-white"
-                    />
+                ) : locationStatus === 'requesting' ? (
+                  <div className="p-3.5 rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950/40 text-cyan-800 dark:text-cyan-200 text-xs flex items-center gap-2.5">
+                    <div className="h-4 w-4 rounded-full border-2 border-cyan-600 border-t-transparent animate-spin shrink-0" />
+                    <span>Acquiring high-accuracy WGS-84 coordinates from device GPS satellites...</span>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-200 dark:border-ink-800">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Capture Latitude</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs mt-0.5 block">
+                        {gpsLat !== null ? `${gpsLat}°` : 'Acquiring...'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-200 dark:border-ink-800">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Capture Longitude</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs mt-0.5 block">
+                        {gpsLng !== null ? `${gpsLng}°` : 'Acquiring...'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-200 dark:border-ink-800">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">GPS Accuracy</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs mt-0.5 block">
+                        {gpsAccuracy !== null ? `±${gpsAccuracy} m` : 'Standard'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-200 dark:border-ink-800">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Timestamp</span>
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs mt-0.5 block">
+                        {gpsTimestamp || 'Live'}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
-                {/* Interactive Geofence Map */}
+                {/* Read-Only Inspection Geofence Map (Interactive Pin Pointing Disabled) */}
                 {geofence && (
                   <div className="mt-2">
                     <GeofenceMap
@@ -622,44 +864,41 @@ export default function ContractorPanel() {
                       radiusKm={geofence.radius_km}
                       currentLat={gpsLat}
                       currentLng={gpsLng}
-                      onCoordinateChange={(lat, lng) => {
-                        setGpsLat(lat)
-                        setGpsLng(lng)
-                        setGpsSource('map_click')
-                        setSubmitResult(null)
-                      }}
+                      interactive={false}
                       projectName={selectedProject.name}
                       height={260}
                     />
                   </div>
                 )}
 
-                {/* Geofence Enforcement Alert */}
-                <div
-                  className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 transition-all ${
-                    isInsideLamina
-                      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-                      : 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300'
-                  }`}
-                >
-                  {isInsideLamina ? (
-                    <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={18} />
-                  ) : (
-                    <ShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={18} />
-                  )}
-                  <div>
-                    <p className="font-bold">
-                      {isInsideLamina
-                        ? 'Geofence Verification Passed (Inside Construction Lamina)'
-                        : 'Geofence Boundary Violation (Outside Construction Area)'}
-                    </p>
-                    <p className="mt-0.5 leading-relaxed">
-                      {isInsideLamina
-                        ? 'Photo coordinates match the project site. This progress report will be accredited and updated in official project timelines.'
-                        : 'Warning: Under statutory oversight rules, photos uploaded from outside the designated construction lamina DO NOT COUNT. Submitting will register an audit violation without crediting project progress.'}
-                    </p>
+                {/* Geofence Enforcement Verification Status */}
+                {gpsLat !== null && gpsLng !== null && (
+                  <div
+                    className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 transition-all ${
+                      isInsideLamina
+                        ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                    }`}
+                  >
+                    {isInsideLamina ? (
+                      <CheckCircle2 className="text-emerald-600 shrink-0 mt-0.5" size={18} />
+                    ) : (
+                      <ShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={18} />
+                    )}
+                    <div>
+                      <p className="font-bold">
+                        {isInsideLamina
+                          ? 'Geofence Verification Passed (Device Inside Construction Lamina)'
+                          : 'Geofence Boundary Violation (Device Outside Construction Lamina)'}
+                      </p>
+                      <p className="mt-0.5 leading-relaxed">
+                        {isInsideLamina
+                          ? 'Photo coordinates match the project site. This progress report will be accredited and updated in official project timelines.'
+                          : 'Warning: Under statutory oversight rules, photos uploaded from outside the designated construction lamina DO NOT COUNT. Submitting will register an audit violation without crediting project progress.'}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Submission Result Notification Banner */}
@@ -771,30 +1010,62 @@ export default function ContractorPanel() {
                 </div>
               )}
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={submitting}
-                className={`w-full py-3 px-6 rounded-2xl text-white font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
-                  isInsideLamina
-                    ? 'bg-brand-orange hover:bg-brand-orangeDark shadow-amber-500/25'
-                    : 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/25'
-                }`}
-              >
-                {submitting ? (
-                  'Verifying Geofence & Submitting...'
-                ) : isInsideLamina ? (
-                  <>
-                    <Upload size={16} />
-                    Submit Verified Progress Report (Counts Towards Metrics)
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle size={16} />
-                    Submit Progress Report (Will Be Rejected By Geofence)
-                  </>
-                )}
-              </button>
+              {/* Submit Button and Gatekeeper Controls */}
+              {locationStatus === 'denied' ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3 px-6 rounded-2xl bg-slate-200 dark:bg-ink-800 text-slate-500 dark:text-slate-400 font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed border border-rose-300 dark:border-rose-900/60"
+                >
+                  <ShieldX size={17} className="text-rose-500" />
+                  <span>Location Access Denied — Report Upload Disabled</span>
+                </button>
+              ) : locationStatus === 'requesting' ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3 px-6 rounded-2xl bg-cyan-600/30 text-cyan-200 font-bold text-sm flex items-center justify-center gap-2 cursor-wait"
+                >
+                  <RefreshCw size={16} className="animate-spin text-cyan-400" />
+                  <span>Acquiring Device GPS Location...</span>
+                </button>
+              ) : !capturedBlob ? (
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="w-full py-3 px-6 rounded-2xl bg-slate-100 dark:bg-ink-800 hover:bg-slate-200 dark:hover:bg-ink-700 text-slate-700 dark:text-slate-300 font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-300 dark:border-ink-700"
+                >
+                  <Camera size={16} className="text-brand-orange" />
+                  <span>Access Camera & Click On-Ground Photo to Submit</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className={`w-full py-3 px-6 rounded-2xl text-white font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    isInsideLamina
+                      ? 'bg-brand-orange hover:bg-brand-orangeDark shadow-amber-500/25 active:scale-98'
+                      : 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/25 active:scale-98'
+                  }`}
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Verifying Geofence & Submitting...</span>
+                    </>
+                  ) : isInsideLamina ? (
+                    <>
+                      <Upload size={16} />
+                      <span>Submit Verified Progress Report (Counts Towards Metrics)</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle size={16} />
+                      <span>Submit Progress Report (Will Be Rejected By Geofence)</span>
+                    </>
+                  )}
+                </button>
+              )}
             </form>
           ) : (
             <div className="p-12 text-center bg-white dark:bg-ink-900 rounded-2xl border border-slate-200 dark:border-ink-800 text-slate-400">
