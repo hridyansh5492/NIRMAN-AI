@@ -24,6 +24,11 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 import pandas as pd
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile

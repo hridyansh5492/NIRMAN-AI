@@ -11,6 +11,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import mock_data
 
 BASE_DIR = Path(__file__).resolve().parent

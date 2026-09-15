@@ -13,6 +13,7 @@ matplotlib>=3.11.1
 pydantic>=2.13.5
 httpx>=0.28.1
 python-multipart>=0.0.9
+python-dotenv>=1.0.0
 
 # Photo verification pipeline (on-site evidence uploads).
 # These are runtime-optional: api.py still boots if they are absent.
