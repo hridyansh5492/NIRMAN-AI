@@ -591,13 +591,11 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            {/* Change the inner metric cards to look dark and flat */}
-<div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-transparent p-4">
-
+            <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
               <p className="text-[11px] font-medium text-slate-400 mb-2">COST OVERRUN RISK</p>
-              <p className="font-display text-2xl font-semibold text-ink-950">18.7%</p>
+              <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">18.7%</p>
               <p className="text-xs text-amber-600 mt-1">Moderate risk</p>
-              <div className="h-1 rounded-full bg-slate-100 mt-3">
+              <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
                 <div className="h-full rounded-full bg-amber-400" style={{ width: '19%' }} />
               </div>
               <p className="text-[11px] text-slate-400 mt-2">₹2,840 Cr exposure</p>
