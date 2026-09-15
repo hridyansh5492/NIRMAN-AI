@@ -398,7 +398,8 @@ def project_detail(project_id: str):
         raise HTTPException(404, f"unknown project {project_id}")
 
     sec = result["sector"]
-    st = result["state"]
+    st = str(result["state"]).title() if result.get("state") else "India"
+    result["state"] = st
     result["id"] = project_id
     result["name"] = f"{st} {sec} Project ({project_id})"
     result["ministry"] = MINISTRY_MAP.get(sec, f"Ministry of {sec}")

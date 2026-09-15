@@ -173,16 +173,86 @@ export async function getProjectDetail(id: string): Promise<ProjectDetailData> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   } catch (err) {
-    console.warn(`Backend unavailable for project ${id}, using fallback`, err)
-    const fallback = mockProjects.find((p) => p.id === id) || mockProjects[0]
+    console.warn(`Backend unavailable for project ${id}, constructing isolated mock fallback`, err)
+    const exact = mockProjects.find((p) => p.id === id)
+    if (exact) {
+      return {
+        ...exact,
+        cop_prob: (exact.costOverrunRisk || 15) / 100,
+        top_prob: (exact.timeOverrunRisk || 25) / 100,
+        model_risk_score: 55,
+        rule_risk_score: 45,
+        final_risk_score: 100 - exact.health,
+        risk_level: exact.status === 'At Risk' ? 'High' : exact.status === 'Watch' ? 'Medium' : 'Low',
+        shap_drivers: [
+          { feature: 'schedule_slip_months', shap_value: 0.32 },
+          { feature: 'financial_physical_gap', shap_value: 0.24 },
+          { feature: 'sector_risk_baseline', shap_value: 0.16 },
+          { feature: 'cost_overrun_to_date_pct', shap_value: 0.11 },
+          { feature: 'expenditure_rate', shap_value: -0.08 },
+        ],
+        warnings: [
+          { warning_type: 'schedule_slip', severity: 'High', signal_value: exact.timeVariance },
+          { warning_type: 'cost_overrun_breach', severity: 'Medium', signal_value: exact.costVariance },
+        ],
+        sanctioned_cost: 15000,
+        revised_cost: 16800,
+        cumulative_expenditure: 8900,
+        duration_months: 60,
+      }
+    }
+
+    // Dynamic, deterministic fallback specifically for this project ID so it never displays another project's details
+    const seed = seedFrom(id)
+    const states = ['Uttarakhand', 'Maharashtra', 'Uttar Pradesh', 'Gujarat', 'Karnataka', 'Tamil Nadu', 'Rajasthan']
+    const sectors = ['Roads & Highways', 'Railways', 'Urban Transport', 'Power & RE', 'Water Resources']
+    const ministries: Record<string, string> = {
+      'Roads & Highways': 'Ministry of Road Transport & Highways',
+      'Railways': 'Ministry of Railways',
+      'Urban Transport': 'Ministry of Housing & Urban Affairs',
+      'Power & RE': 'Ministry of Power & New Renewable Energy',
+      'Water Resources': 'Ministry of Jal Shakti',
+    }
+    const state = states[seed % states.length]
+    const sector = sectors[(seed >> 3) % sectors.length]
+    const ministry = ministries[sector] || `Ministry of ${sector}`
+    const phys = 25 + (seed % 65)
+    const fin = Math.max(10, Math.min(100, phys + ((seed % 15) - 7)))
+    const slip = ((seed % 80) / 10)
+    const costOverrun = ((seed % 120) / 10) - 2
+    const riskScore = Math.min(95, Math.max(15, Math.round(slip * 6 + Math.max(0, costOverrun) * 1.5)))
+    const riskLvl = riskScore >= 70 ? 'High' : riskScore >= 40 ? 'Medium' : 'Low'
+    const status = phys >= 100 ? 'Completed' : (riskLvl === 'High' ? 'At Risk' : riskLvl === 'Medium' ? 'Watch' : 'On Track')
+
     return {
-      ...fallback,
-      cop_prob: (fallback.costOverrunRisk || 15) / 100,
-      top_prob: (fallback.timeOverrunRisk || 25) / 100,
-      model_risk_score: 55,
-      rule_risk_score: 45,
-      final_risk_score: 100 - fallback.health,
-      risk_level: fallback.status === 'At Risk' ? 'High' : fallback.status === 'Watch' ? 'Medium' : 'Low',
+      id,
+      name: `${state} ${sector} Project (${id})`,
+      ministry,
+      sector: sector as any,
+      state,
+      status: status as any,
+      physicalProgress: phys,
+      financialProgress: fin,
+      health: Math.max(0, 100 - riskScore),
+      costOverrunRisk: Math.round(Math.min(95, Math.max(5, (costOverrun + 5) * 4))),
+      timeOverrunRisk: Math.round(Math.min(95, Math.max(5, (slip + 1) * 8))),
+      originalCompletion: '31 Dec 2028',
+      predictedCompletion: '30 Jun 2030',
+      expenditure: `₹ ${(500 + (seed % 5000)).toLocaleString()} Cr`,
+      costVariance: Math.round(costOverrun * 10) / 10,
+      timeVariance: Math.round(slip * 10) / 10,
+      currentStageIndex: Math.min(4, Math.max(0, Math.floor(phys / 25))),
+      reviewReason: `Predictive model analysis for ${id} in ${state}. Current physical execution is at ${phys}% with schedule slip variance of ${slip} months.`,
+      flags: [
+        { label: slip > 4 ? `Schedule slip +${slip} mo` : 'Stable schedule timeline', tone: slip > 4 ? 'negative' : 'positive' },
+        { label: costOverrun > 10 ? `Cost escalation +${costOverrun}%` : 'Disciplined expenditure velocity', tone: costOverrun > 10 ? 'negative' : 'positive' }
+      ],
+      cop_prob: Math.min(0.95, Math.max(0.05, (costOverrun + 5) * 0.04)),
+      top_prob: Math.min(0.95, Math.max(0.05, (slip + 1) * 0.08)),
+      model_risk_score: riskScore,
+      rule_risk_score: riskScore,
+      final_risk_score: riskScore,
+      risk_level: riskLvl,
       shap_drivers: [
         { feature: 'schedule_slip_months', shap_value: 0.32 },
         { feature: 'financial_physical_gap', shap_value: 0.24 },
@@ -191,13 +261,13 @@ export async function getProjectDetail(id: string): Promise<ProjectDetailData> {
         { feature: 'expenditure_rate', shap_value: -0.08 },
       ],
       warnings: [
-        { warning_type: 'schedule_slip', severity: 'High', signal_value: fallback.timeVariance },
-        { warning_type: 'cost_overrun_breach', severity: 'Medium', signal_value: fallback.costVariance },
+        { warning_type: 'schedule_slip', severity: slip > 4 ? 'High' : 'Medium', signal_value: slip },
+        { warning_type: 'cost_overrun_breach', severity: costOverrun > 10 ? 'High' : 'Medium', signal_value: costOverrun },
       ],
-      sanctioned_cost: 15000,
-      revised_cost: 16800,
-      cumulative_expenditure: 8900,
-      duration_months: 60,
+      sanctioned_cost: 2500,
+      revised_cost: 2800,
+      cumulative_expenditure: 1200,
+      duration_months: 48,
     }
   }
 }

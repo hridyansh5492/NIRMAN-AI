@@ -23,6 +23,17 @@ def risk_level(x):
     return "Low"
 
 
+def clean_num(val, default=0.0):
+    """Ensure val is a standard Python float, replacing NaN/None with default."""
+    if val is None:
+        return default
+    try:
+        f = float(val)
+        return default if np.isnan(f) or np.isinf(f) else f
+    except (TypeError, ValueError):
+        return default
+
+
 class ScoreEngine:
     def __init__(self):
         import os
@@ -140,32 +151,32 @@ class ScoreEngine:
             pred_res = self.predict_custom(pred_data)
             return {
                 "project_id": project_id,
-                "sector": d["sector"],
-                "state": d["state"],
-                "month": d["month"],
+                "sector": str(d["sector"]),
+                "state": str(d["state"]),
+                "month": str(d["month"]),
                 "snapshot_id": f"{project_id}|{d['month']}",
-                "physical_progress_pct": round(float(d["physical_progress_pct"]), 2),
-                "financial_progress_pct": round(float(d["financial_progress_pct"]), 2),
-                "cost_overrun_to_date_pct": round(float(d["cost_overrun_to_date_pct"]), 2),
-                "schedule_slip_months": round(float(d["schedule_slip_months"]), 2),
-                "sector_risk_baseline": pred_res["sector_risk_baseline"],
-                "state_risk_baseline": pred_res["state_risk_baseline"],
-                "prior_risk": pred_res["prior_risk"],
-                "cost_vs_prior": pred_res["cost_vs_prior"],
-                "expected_slip": pred_res["expected_slip"],
-                "slip_vs_expected": pred_res["slip_vs_expected"],
-                "rem_work": pred_res["rem_work"],
-                "burn_ratio": pred_res["burn_ratio"],
-                "cop_prob": round(float(d["cop_prob"]), 4),
-                "top_prob": round(float(d["top_prob"]), 4),
-                "model_risk_score": round(float(d["model_risk_score"]), 1),
-                "rule_risk_score": round(float(d["rule_risk_score"]), 1),
-                "final_risk_score": round(float(d["final_risk_score"]), 1),
-                "risk_level": d["risk_level"],
-                "health": max(0, min(100, round(100 - float(d["final_risk_score"]), 1))),
+                "physical_progress_pct": round(clean_num(d["physical_progress_pct"]), 2),
+                "financial_progress_pct": round(clean_num(d["financial_progress_pct"]), 2),
+                "cost_overrun_to_date_pct": round(clean_num(d["cost_overrun_to_date_pct"]), 2),
+                "schedule_slip_months": round(clean_num(d["schedule_slip_months"]), 2),
+                "sector_risk_baseline": round(clean_num(pred_res.get("sector_risk_baseline"), default=8.0), 2),
+                "state_risk_baseline": round(clean_num(pred_res.get("state_risk_baseline"), default=5.0), 2),
+                "prior_risk": round(clean_num(pred_res.get("prior_risk")), 2),
+                "cost_vs_prior": round(clean_num(pred_res.get("cost_vs_prior")), 2),
+                "expected_slip": round(clean_num(pred_res.get("expected_slip")), 2),
+                "slip_vs_expected": round(clean_num(pred_res.get("slip_vs_expected")), 2),
+                "rem_work": round(clean_num(pred_res.get("rem_work")), 2),
+                "burn_ratio": round(clean_num(pred_res.get("burn_ratio")), 2),
+                "cop_prob": round(clean_num(d["cop_prob"]), 4),
+                "top_prob": round(clean_num(d["top_prob"]), 4),
+                "model_risk_score": round(clean_num(d["model_risk_score"]), 1),
+                "rule_risk_score": round(clean_num(d["rule_risk_score"]), 1),
+                "final_risk_score": round(clean_num(d["final_risk_score"]), 1),
+                "risk_level": risk_level(clean_num(d["final_risk_score"])),
+                "health": max(0.0, min(100.0, round(100.0 - clean_num(d["final_risk_score"]), 1))),
                 "shap_drivers": pred_res["shap_drivers"],
                 "warnings": pred_res["warnings"],
-                "sanctioned_cost": float(d["sanctioned_cost"] or 0),
+                "sanctioned_cost": clean_num(d["sanctioned_cost"] or 0),
                 "sanctioned_date": str(d.get("sanctioned_date") or ""),
                 "original_end_date": str(d.get("original_end_date") or ""),
                 "duration_months": float(d.get("duration_months") or 36),
@@ -203,38 +214,38 @@ class ScoreEngine:
 
         return {
             "project_id": project_id,
-            "sector": row["sector"],
-            "state": row["state"],
-            "month": row["month"],
-            "snapshot_id": row["snapshot_id"],
-            "physical_progress_pct": round(row["physical_progress_pct"], 2),
-            "financial_progress_pct": round(row["financial_progress_pct"], 2),
-            "cost_overrun_to_date_pct": round(row["cost_overrun_to_date_pct"], 2),
-            "schedule_slip_months": round(row["schedule_slip_months"], 2),
-            "sector_risk_baseline": round(row["sector_risk_baseline"], 2),
-            "state_risk_baseline": round(row["state_risk_baseline"], 2),
-            "prior_risk": round(float(row.get("prior_risk", 0.0)), 2),
-            "cost_vs_prior": round(float(row.get("cost_vs_prior", 0.0)), 2),
-            "expected_slip": round(float(row.get("expected_slip", 0.0)), 2),
-            "slip_vs_expected": round(float(row.get("slip_vs_expected", 0.0)), 2),
-            "rem_work": round(float(row.get("rem_work", 0.0)), 2),
-            "burn_ratio": round(float(row.get("burn_ratio", 0.0)), 2),
-            "cop_prob": round(cop_prob, 4),
-            "top_prob": round(top_prob, 4),
-            "model_risk_score": round(model_score, 1),
-            "rule_risk_score": round(rule, 1),
-            "final_risk_score": round(final, 1),
-            "risk_level": risk_level(final),
-            "health": max(0, min(100, round(100 - final, 1))),
+            "sector": str(row["sector"]),
+            "state": str(row["state"]),
+            "month": str(row["month"]),
+            "snapshot_id": str(row["snapshot_id"]),
+            "physical_progress_pct": round(clean_num(row["physical_progress_pct"]), 2),
+            "financial_progress_pct": round(clean_num(row["financial_progress_pct"]), 2),
+            "cost_overrun_to_date_pct": round(clean_num(row["cost_overrun_to_date_pct"]), 2),
+            "schedule_slip_months": round(clean_num(row["schedule_slip_months"]), 2),
+            "sector_risk_baseline": round(clean_num(row["sector_risk_baseline"], default=8.0), 2),
+            "state_risk_baseline": round(clean_num(row["state_risk_baseline"], default=5.0), 2),
+            "prior_risk": round(clean_num(row.get("prior_risk", 0.0)), 2),
+            "cost_vs_prior": round(clean_num(row.get("cost_vs_prior", 0.0)), 2),
+            "expected_slip": round(clean_num(row.get("expected_slip", 0.0)), 2),
+            "slip_vs_expected": round(clean_num(row.get("slip_vs_expected", 0.0)), 2),
+            "rem_work": round(clean_num(row.get("rem_work", 0.0)), 2),
+            "burn_ratio": round(clean_num(row.get("burn_ratio", 0.0)), 2),
+            "cop_prob": round(clean_num(cop_prob), 4),
+            "top_prob": round(clean_num(top_prob), 4),
+            "model_risk_score": round(clean_num(model_score), 1),
+            "rule_risk_score": round(clean_num(rule), 1),
+            "final_risk_score": round(clean_num(final), 1),
+            "risk_level": risk_level(clean_num(final)),
+            "health": max(0.0, min(100.0, round(100.0 - clean_num(final), 1))),
             "shap_drivers": drivers,
             "warnings": warnings,
-            "sanctioned_cost": p_info.get("sanctioned_cost", 0.0),
-            "sanctioned_date": p_info.get("sanctioned_date", ""),
-            "original_end_date": p_info.get("original_end_date", ""),
-            "duration_months": p_info.get("duration_months", 0),
-            "cumulative_expenditure": s_info.get("cumulative_expenditure", 0.0),
-            "revised_cost": s_info.get("revised_cost", 0.0),
-            "revised_end_date": s_info.get("revised_end_date", ""),
+            "sanctioned_cost": clean_num(p_info.get("sanctioned_cost", 0.0)),
+            "sanctioned_date": str(p_info.get("sanctioned_date") or ""),
+            "original_end_date": str(p_info.get("original_end_date") or ""),
+            "duration_months": clean_num(p_info.get("duration_months", 0)),
+            "cumulative_expenditure": clean_num(s_info.get("cumulative_expenditure", 0.0)),
+            "revised_cost": clean_num(s_info.get("revised_cost", 0.0)),
+            "revised_end_date": str(s_info.get("revised_end_date") or ""),
         }
 
     def predict_custom(self, data: dict):
@@ -254,10 +265,10 @@ class ScoreEngine:
         phys_sched_gap = round(phys - expected_phys, 3)
         exp_rate = round(cum_exp / max(1, rev_cost) * 100, 3)
 
-        sec_row = pd.read_sql("SELECT avg_cost_overrun_pct FROM sector_baselines WHERE sector=?", self.conn, params=[sector])
-        sec_base = float(sec_row.iloc[0, 0]) if not sec_row.empty else 8.0
-        sta_row = pd.read_sql("SELECT avg_cost_overrun_pct FROM state_baselines WHERE state=?", self.conn, params=[state])
-        sta_base = float(sta_row.iloc[0, 0]) if not sta_row.empty else 5.0
+        sec_row = pd.read_sql("SELECT avg_cost_overrun_pct FROM sector_baselines WHERE LOWER(sector)=LOWER(?)", self.conn, params=[sector])
+        sec_base = clean_num(sec_row.iloc[0, 0], default=8.0) if not sec_row.empty else 8.0
+        sta_row = pd.read_sql("SELECT avg_cost_overrun_pct FROM state_baselines WHERE LOWER(state)=LOWER(?)", self.conn, params=[state])
+        sta_base = clean_num(sta_row.iloc[0, 0], default=5.0) if not sta_row.empty else 5.0
 
         feat_dict = {
             "physical_progress_pct": phys,
