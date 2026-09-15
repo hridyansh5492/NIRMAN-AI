@@ -89,6 +89,9 @@ def is_point_in_polygon(lat: float, lng: float, polygon: Sequence[Sequence[float
 def generate_lamina_polygon(center_lat: float, center_lng: float, radius_km: float = 3.0, vertices: int = 6) -> List[List[float]]:
     """Generate a convex polygon boundary (lamina) around a project location."""
     import math
+    center_lat = float(center_lat)
+    center_lng = float(center_lng)
+    radius_km = float(radius_km)
     coords = []
     lat_scale = radius_km / 111.0
     lng_scale = radius_km / (111.0 * max(0.1, math.cos(math.radians(center_lat))))

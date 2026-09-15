@@ -6,14 +6,31 @@
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+import pandas as pd
+import numpy as np
+import psycopg2
+import psycopg2.extensions
+from psycopg2.extras import DictCursor
+from sqlalchemy import create_engine, text
+
+# Automatically cast PostgreSQL NUMERIC/DECIMAL to float
+DEC2FLOAT = psycopg2.extensions.new_type(
+    psycopg2.extensions.DECIMAL.values,
+    "DEC2FLOAT",
+    lambda value, curs: float(value) if value is not None else None
+)
+psycopg2.extensions.register_type(DEC2FLOAT)
 
 import mock_data
 
@@ -23,16 +40,227 @@ DB_CORE = str(BASE_DIR / "project_monitoring.db")
 DB_CONTRACTORS_ADMIN = str(BASE_DIR / "contractors_admin.db")
 DB_REPORTS_PHOTOS = str(BASE_DIR / "reports_photos.db")
 
+_ENGINE = None
 
-def get_core_conn() -> sqlite3.Connection:
+
+def get_database_url() -> Optional[str]:
+    url = os.getenv("DATABASE_URL", "").strip()
+    return url if url else None
+
+
+def is_supabase() -> bool:
+    return bool(get_database_url())
+
+
+def get_supabase_engine():
+    global _ENGINE
+    if _ENGINE is None:
+        url = get_database_url()
+        if not url:
+            raise ValueError("DATABASE_URL is not configured.")
+        sa_url = url
+        if sa_url.startswith("postgresql://"):
+            sa_url = sa_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        _ENGINE = create_engine(sa_url, pool_pre_ping=True, pool_size=10, max_overflow=20)
+    return _ENGINE
+
+
+TABLE_PKS = {
+    "projects": ["project_id"],
+    "project_snapshots": ["project_id", "month"],
+    "project_features": ["project_id", "month"],
+    "risk_scores": ["project_id", "month"],
+    "model_risk_scores": ["project_id", "month"],
+    "contractors": ["contractor_id"],
+    "admins": ["admin_id"],
+    "contractor_assignments": ["project_id", "contractor_id"],
+    "project_geofences": ["project_id"],
+    "contractor_progress_reports": ["submission_id"],
+    "photo_uploads": ["file_name"],
+    "verification_records": ["id"],
+    "sector_baselines": ["sector"],
+    "state_baselines": ["state"],
+    "state_monthly_trends": ["state", "month"],
+    "national_monthly_trends": ["month"],
+    "progress_buckets": ["month", "progress_bucket"],
+}
+
+
+def translate_sql(sql: str) -> str:
+    s = sql.strip()
+    s = re.sub(
+        r"sqlite_master\s+WHERE\s+type\s*=\s*'table'",
+        "(SELECT table_name AS name FROM information_schema.tables WHERE table_schema = 'public') AS sqlite_master",
+        s,
+        flags=re.IGNORECASE
+    )
+    if re.match(r"^INSERT\s+OR\s+IGNORE\s+INTO", s, re.IGNORECASE):
+        s = re.sub(r"^INSERT\s+OR\s+IGNORE\s+INTO", "INSERT INTO", s, flags=re.IGNORECASE)
+        s += " ON CONFLICT DO NOTHING"
+    elif re.match(r"^INSERT\s+OR\s+REPLACE\s+INTO", s, re.IGNORECASE):
+        m = re.search(r"^INSERT\s+OR\s+REPLACE\s+INTO\s+([a-zA-Z0-9_]+)\s*\(([^)]+)\)\s*VALUES", s, re.IGNORECASE)
+        if m:
+            tbl = m.group(1).lower()
+            cols = [c.strip() for c in m.group(2).split(',')]
+            pk = TABLE_PKS.get(tbl, [])
+            if pk:
+                update_cols = [c for c in cols if c.lower() not in [p.lower() for p in pk]]
+                pk_str = ', '.join(pk)
+                if update_cols:
+                    set_str = ', '.join([f"{c} = EXCLUDED.{c}" for c in update_cols])
+                    upsert = f" ON CONFLICT ({pk_str}) DO UPDATE SET {set_str}"
+                else:
+                    upsert = f" ON CONFLICT ({pk_str}) DO NOTHING"
+                s = re.sub(r"^INSERT\s+OR\s+REPLACE\s+INTO", "INSERT INTO", s, flags=re.IGNORECASE)
+                s += upsert
+            else:
+                s = re.sub(r"^INSERT\s+OR\s+REPLACE\s+INTO", "INSERT INTO", s, flags=re.IGNORECASE)
+        else:
+            s = re.sub(r"^INSERT\s+OR\s+REPLACE\s+INTO", "INSERT INTO", s, flags=re.IGNORECASE)
+    # Replace AUTOINCREMENT with SERIAL
+    s = re.sub(r"INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT", "SERIAL PRIMARY KEY", s, flags=re.IGNORECASE)
+    s = s.replace('?', '%s')
+    return s
+
+
+def _clean_params(params):
+    if params is None:
+        return None
+    if isinstance(params, (list, tuple)):
+        cleaned = []
+        for p in params:
+            if hasattr(p, 'item'):
+                cleaned.append(p.item())
+            else:
+                cleaned.append(p)
+        return tuple(cleaned)
+    return params
+
+
+class SupabaseCursor:
+    def __init__(self, raw_cursor):
+        self.raw_cursor = raw_cursor
+
+    def execute(self, sql, params=None):
+        return self.raw_cursor.execute(translate_sql(sql), _clean_params(params))
+
+    def executemany(self, sql, seq_of_params):
+        return self.raw_cursor.executemany(translate_sql(sql), [_clean_params(p) for p in seq_of_params])
+
+    def fetchone(self):
+        return self.raw_cursor.fetchone()
+
+    def fetchall(self):
+        return self.raw_cursor.fetchall()
+
+    def fetchmany(self, size=None):
+        return self.raw_cursor.fetchmany(size)
+
+    @property
+    def rowcount(self):
+        return self.raw_cursor.rowcount
+
+    @property
+    def description(self):
+        return self.raw_cursor.description
+
+    def close(self):
+        self.raw_cursor.close()
+
+    def __iter__(self):
+        return iter(self.raw_cursor)
+
+
+class SupabaseDBConnection:
+    def __init__(self, db_url: str):
+        self.conn = psycopg2.connect(db_url)
+        self.row_factory = None
+
+    def cursor(self, cursor_factory=None):
+        cf = cursor_factory or DictCursor
+        return SupabaseCursor(self.conn.cursor(cursor_factory=cf))
+
+    def execute(self, sql, params=None):
+        cur = self.cursor()
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            self.rollback()
+        else:
+            self.commit()
+        self.close()
+
+
+def read_sql(sql: str, params: Optional[Any] = None) -> pd.DataFrame:
+    """Execute SQL query and return DataFrame using Supabase PostgreSQL or SQLite."""
+    if is_supabase():
+        engine = get_supabase_engine()
+        if params:
+            # Map ? to :p0, :p1 ...
+            parts = sql.split("?")
+            new_sql_parts = []
+            param_dict = {}
+            for i, part in enumerate(parts[:-1]):
+                new_sql_parts.append(part)
+                param_name = f"p{i}"
+                new_sql_parts.append(f":{param_name}")
+                val = params[i]
+                if hasattr(val, "item"):
+                    val = val.item()
+                param_dict[param_name] = val
+            new_sql_parts.append(parts[-1])
+            final_sql = "".join(new_sql_parts)
+            final_sql = re.sub(
+                r"sqlite_master\s+WHERE\s+type\s*=\s*'table'",
+                "(SELECT table_name AS name FROM information_schema.tables WHERE table_schema = 'public') AS sqlite_master",
+                final_sql,
+                flags=re.IGNORECASE
+            )
+            with engine.connect() as conn:
+                return pd.read_sql(text(final_sql), conn, params=param_dict)
+        else:
+            final_sql = re.sub(
+                r"sqlite_master\s+WHERE\s+type\s*=\s*'table'",
+                "(SELECT table_name AS name FROM information_schema.tables WHERE table_schema = 'public') AS sqlite_master",
+                sql,
+                flags=re.IGNORECASE
+            )
+            with engine.connect() as conn:
+                return pd.read_sql(text(final_sql), conn)
+    else:
+        with sqlite3.connect(DB_CORE) as conn:
+            return pd.read_sql(sql, conn, params=params)
+
+
+def get_core_conn():
+    if is_supabase():
+        return SupabaseDBConnection(get_database_url())
     return sqlite3.connect(DB_CORE, check_same_thread=False)
 
 
-def get_contractors_admin_conn() -> sqlite3.Connection:
+def get_contractors_admin_conn():
+    if is_supabase():
+        return SupabaseDBConnection(get_database_url())
     return sqlite3.connect(DB_CONTRACTORS_ADMIN, check_same_thread=False)
 
 
-def get_reports_photos_conn() -> sqlite3.Connection:
+def get_reports_photos_conn():
+    if is_supabase():
+        return SupabaseDBConnection(get_database_url())
     return sqlite3.connect(DB_REPORTS_PHOTOS, check_same_thread=False)
 
 
@@ -338,7 +566,30 @@ def init_all_databases() -> None:
 
 
 def get_all_database_status() -> Dict[str, Any]:
-    """Inspect and report the status, file sizes, and table counts of all 3 databases."""
+    """Inspect and report the status, file sizes, and table counts of all databases."""
+    if is_supabase():
+        tables = {}
+        try:
+            with get_supabase_engine().connect() as conn:
+                res = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"))
+                table_names = [r[0] for r in res.fetchall()]
+                for t in sorted(table_names):
+                    cnt = conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar()
+                    tables[t] = cnt
+            return {
+                "status": "healthy",
+                "database_engine": "Supabase PostgreSQL (Active Cloud)",
+                "total_databases": 1,
+                "total_tables": len(tables),
+                "tables": tables,
+            }
+        except Exception as e:
+            return {
+                "status": "degraded",
+                "database_engine": "Supabase PostgreSQL",
+                "error": str(e),
+            }
+
     databases = {}
 
     configs = [

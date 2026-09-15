@@ -136,6 +136,8 @@ def _map_projects(limit: int = 200):
 
 
 def q(sql, params=None):
+    if db_manager.is_supabase():
+        return db_manager.read_sql(sql, params=params)
     conn = sqlite3.connect(DB)
     df = pd.read_sql(sql, conn, params=params)
     conn.close()
@@ -281,7 +283,7 @@ def health():
     snap_df = q("SELECT count(*) as n FROM project_snapshots")
     return {
         "status": "connected",
-        "database": "project_monitoring.db",
+        "database": "Supabase PostgreSQL (Active Cloud)" if db_manager.is_supabase() else "project_monitoring.db",
         "tables_count": len(tables_df),
         "total_projects": int(proj_df.iloc[0]["n"]) if not proj_df.empty else 0,
         "total_snapshots": int(snap_df.iloc[0]["n"]) if not snap_df.empty else 0,
@@ -454,7 +456,7 @@ def predict_project(req: PredictRequest):
 
 @app.post("/api/projects")
 def register_project(req: RegisterProjectRequest):
-    conn = sqlite3.connect(DB)
+    conn = db_manager.get_core_conn()
     c = conn.cursor()
 
     # Determine next PRJ-XXXX identifier
@@ -816,12 +818,12 @@ async def verify_image_upload(
     finally:
         conn.close()
 
-    # Mirror to project_monitoring.db for backwards compatibility
+    # Mirror to core DB for backwards compatibility
     try:
-        with sqlite3.connect(DB) as c_core:
+        with db_manager.get_core_conn() as c_core:
             c_core.execute(
-                "INSERT INTO verification_records (file_name, upload_path, project_id, submitted_at, status, result_json) VALUES (?, ?, ?, ?, ?, ?)",
-                (file.filename or safe_name, safe_name, project_id, result["submitted_at"], result["status"], json.dumps(result))
+                "INSERT INTO verification_records (file_name, original_name, capture_time, client_lat, client_lng, extracted_lat, extracted_lng, distance_meters, result_json, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (file.filename or safe_name, file.filename or safe_name, result.get("time", {}).get("extracted_time", ""), result.get("gps", {}).get("client_lat"), result.get("gps", {}).get("client_lng"), result.get("gps", {}).get("lat"), result.get("gps", {}).get("lng"), result.get("gps", {}).get("distance_m", 0.0), json.dumps(result), result["status"], result["submitted_at"])
             )
             c_core.commit()
     except Exception:
@@ -1174,9 +1176,9 @@ def recompute_project_intelligence(
 
     and update project_snapshots, model_risk_scores, and project_features in SQLite DB.
     """
-    conn = sqlite3.connect(DB)
+    conn = db_manager.get_core_conn()
     try:
-        p_row = pd.read_sql("SELECT * FROM projects WHERE project_id = ?", conn, params=[project_id])
+        p_row = q("SELECT * FROM projects WHERE project_id = ?", params=[project_id])
         if p_row.empty:
             demo = mock_data.demo_by_id(project_id)
             if demo:
@@ -1192,7 +1194,7 @@ def recompute_project_intelligence(
                 "VALUES (?, ?, ?, ?, '2024-01-01', '2027-01-01', 36)",
                 (project_id, sector, state, sanctioned_cost)
             )
-            p_row = pd.read_sql("SELECT * FROM projects WHERE project_id = ?", conn, params=[project_id])
+            p_row = q("SELECT * FROM projects WHERE project_id = ?", params=[project_id])
 
         p_info = p_row.iloc[0].to_dict()
         sector = p_info["sector"]
@@ -1200,7 +1202,7 @@ def recompute_project_intelligence(
         sanctioned_cost = float(p_info.get("sanctioned_cost") or 1000.0)
         duration_months = float(p_info.get("duration_months") or 36.0)
 
-        s_row = pd.read_sql("SELECT * FROM project_snapshots WHERE project_id = ? AND month = 'July'", conn, params=[project_id])
+        s_row = q("SELECT * FROM project_snapshots WHERE project_id = ? AND month = 'July'", params=[project_id])
         if not s_row.empty:
             s_info = s_row.iloc[0].to_dict()
             prev_phys = float(s_info.get("physical_progress_pct") or 0.0)
@@ -1457,7 +1459,7 @@ async def contractor_submit_progress(
 
     # Mirror to project_monitoring.db for backwards compatibility
     try:
-        with sqlite3.connect(DB) as c_core:
+        with db_manager.get_core_conn() as c_core:
             c_core.execute("""
             INSERT OR REPLACE INTO contractor_progress_reports
             (submission_id, project_id, contractor_id, physical_progress_pct, financial_expenditure_cr, notes, photo_url, gps_lat, gps_lng, inside_geofence, verification_status, counts_towards_progress, submitted_at, details_json, ai_intelligence_json)
@@ -1553,9 +1555,9 @@ def admin_assign_contractor(req: AssignContractorRequest):
     finally:
         conn_admin.close()
 
-    # Mirror to project_monitoring.db
+    # Mirror to core DB
     try:
-        with sqlite3.connect(DB) as c_core:
+        with db_manager.get_core_conn() as c_core:
             c_core.execute("""
             INSERT OR REPLACE INTO contractor_assignments
             (project_id, contractor_id, package_name, assigned_date, contract_value_cr)
@@ -1610,7 +1612,7 @@ def admin_set_geofence(req: AdminGeofenceRequest):
         conn_admin.close()
 
     try:
-        with sqlite3.connect(DB) as c_core:
+        with db_manager.get_core_conn() as c_core:
             c_core.execute("""
             INSERT OR REPLACE INTO project_geofences (project_id, center_lat, center_lng, radius_km, boundary_geojson, created_at)
             VALUES (?, ?, ?, ?, ?, ?)

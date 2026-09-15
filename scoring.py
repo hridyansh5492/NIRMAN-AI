@@ -7,6 +7,7 @@ import pandas as pd
 import xgboost as xgb
 import shap
 
+import db_manager
 import train_models as T
 
 DB = "project_monitoring.db"
@@ -25,7 +26,7 @@ def risk_level(x):
 class ScoreEngine:
     def __init__(self):
         import os
-        self.conn = sqlite3.connect(DB, check_same_thread=False)
+        self.conn = db_manager.get_core_conn()
         self.cop = None
         self.top = None
         if os.path.isfile("cop_model.json"):
@@ -40,12 +41,12 @@ class ScoreEngine:
                 self.top.load_model("top_model.json")
             except Exception:
                 self.top = None
-        self.feats = pd.read_sql("SELECT * FROM project_features", self.conn)
+        self.feats = db_manager.read_sql("SELECT * FROM project_features")
         self.explainer = None
 
     def reload_data(self):
         """Reload project_features table from DB after intelligence recomputations."""
-        self.feats = pd.read_sql("SELECT * FROM project_features", self.conn)
+        self.feats = db_manager.read_sql("SELECT * FROM project_features")
         self.explainer = None
 
     # --- helpers ---------------------------------------------------------
