@@ -602,36 +602,36 @@ export default function Dashboard() {
               </div>
               <p className="text-[11px] text-slate-400 mt-2">₹2,840 Cr exposure</p>
             </div>
-            <div className="rounded-lg border border-slate-100 p-4">
+            <div className="rounded-lg border border-slate-100 dark:border-ink-800 p-4 bg-slate-50/50 dark:bg-ink-950/40">
               <p className="text-[11px] font-medium text-slate-400 mb-2">TIME OVERRUN RISK</p>
-              <p className="font-display text-2xl font-semibold text-ink-950">31.4%</p>
+              <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">31.4%</p>
               <p className="text-xs text-red-500 mt-1">High risk</p>
-              <div className="h-1 rounded-full bg-slate-100 mt-3">
+              <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
                 <div className="h-full rounded-full bg-red-400" style={{ width: '31%' }} />
               </div>
               <p className="text-[11px] text-slate-400 mt-2">8.3 months expected</p>
             </div>
-            <div className="rounded-lg border border-slate-100 p-4">
+            <div className="rounded-lg border border-slate-100 dark:border-ink-800 p-4 bg-slate-50/50 dark:bg-ink-950/40">
               <p className="text-[11px] font-medium text-slate-400 mb-2">PROJECT HEALTH</p>
-              <p className="font-display text-2xl font-semibold text-ink-950">72 / 100</p>
+              <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">72 / 100</p>
               <p className="text-xs text-amber-600 mt-1">Watch</p>
-              <div className="h-1 rounded-full bg-slate-100 mt-3">
+              <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
                 <div className="h-full rounded-full bg-cyan-400" style={{ width: '72%' }} />
               </div>
               <p className="text-[11px] text-slate-400 mt-2">87% confidence</p>
             </div>
           </div>
-          <div className="mt-5 rounded-lg bg-slate-50 p-4 flex-1">
-            <p className="text-sm font-semibold text-ink-950 mb-1.5">Why this matters</p>
-            <p className="text-sm text-slate-500 leading-relaxed">
+          <div className="mt-5 rounded-lg bg-slate-50 dark:bg-ink-950 p-4 flex-1 border border-slate-100 dark:border-ink-800">
+            <p className="text-sm font-semibold text-ink-950 dark:text-white mb-1.5">Why this matters</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
               Schedule slippage and revised project cost are increasing risk, while strong physical progress is
               partially offsetting the forecast. Predictions are estimates to support review, not authoritative
               outcomes.
             </p>
             <div className="flex flex-wrap gap-2 mt-3">
-              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">+ Strong physical progress</span>
-              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-700">+ Schedule slippage</span>
-              <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] text-orange-700">+ Cost restrain</span>
+              <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/40 dark:border-emerald-800/40 px-2.5 py-1 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium">+ Strong physical progress</span>
+              <span className="rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200/40 dark:border-amber-800/40 px-2.5 py-1 text-[11px] text-amber-700 dark:text-amber-300 font-medium">+ Schedule slippage</span>
+              <span className="rounded-full bg-orange-50 dark:bg-orange-950/60 border border-orange-200/40 dark:border-orange-800/40 px-2.5 py-1 text-[11px] text-orange-700 dark:text-orange-300 font-medium">+ Cost restrain</span>
             </div>
           </div>
         </div>

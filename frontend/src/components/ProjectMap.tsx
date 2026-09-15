@@ -90,17 +90,17 @@ export default function ProjectMap({
               </span>
             </Tooltip>
             <Popup>
-              <div className="min-w-[230px] text-slate-900">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              <div className="min-w-[230px] text-slate-900 dark:text-slate-100">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {p.sector} · {p.state}
                 </p>
                 <p className="mt-1 text-sm font-bold leading-snug">{p.name}</p>
                 {p.location && (
-                  <p className="mt-0.5 text-xs text-cyan-700 font-medium">
+                  <p className="mt-0.5 text-xs text-cyan-700 dark:text-cyan-400 font-medium">
                     📍 Site: {p.location}
                   </p>
                 )}
-                <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-600">
+                <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${
                       statusOf(p) === 'At Risk'
@@ -114,13 +114,13 @@ export default function ProjectMap({
                   </span>
                   <span>{p.risk_score != null ? `Risk ${p.risk_score}` : `Risk ${p.risk_level ?? '—'}`}</span>
                 </div>
-                <div className="mt-2 space-y-1 text-[11px] text-slate-600">
+                <div className="mt-2 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
                   {p.cost_cr != null && p.cost_cr > 0 && <p>Sanctioned cost: {formatCr(p.cost_cr)}</p>}
                   {p.physical_progress_pct != null && <p>Physical progress: {p.physical_progress_pct}%</p>}
                 </div>
                 <Link
                   to={`/projects/${p.project_id ?? p.id}`}
-                  className="mt-3 inline-block text-[11px] font-semibold text-cyan-600 hover:underline"
+                  className="mt-3 inline-block text-[11px] font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
                 >
                   Open project intelligence →
                 </Link>

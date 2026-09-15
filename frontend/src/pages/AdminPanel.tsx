@@ -29,6 +29,7 @@ import {
   setAdminGeofence,
 } from '../services/api'
 import { stateCentroids } from '../data/stateCentroids'
+import { stateDistrictHubs } from '../data/stateDistrictHubs'
 import { GeofenceMap } from '../components/GeofenceMap'
 import type { Project, Contractor, Sector } from '../types'
 
@@ -688,6 +689,36 @@ export default function AdminPanel() {
                   </button>
                 </div>
 
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                      Snap Location to District / Project Site:
+                    </label>
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                      or click directly on map 📍
+                    </span>
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      const selectedVal = e.target.value
+                      if (!selectedVal) return
+                      const [latStr, lngStr] = selectedVal.split(',')
+                      if (latStr && lngStr) {
+                        setCenterLat(parseFloat(latStr))
+                        setCenterLng(parseFloat(lngStr))
+                      }
+                    }}
+                    className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white outline-none focus:border-cyan-500 cursor-pointer"
+                  >
+                    <option value="">-- Choose Key Work Site / District ({projectState}) --</option>
+                    {(stateDistrictHubs[projectState] || []).map(([district, lat, lng]) => (
+                      <option key={district} value={`${lat},${lng}`}>
+                        {district} ({lat.toFixed(3)}, {lng.toFixed(3)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-slate-500 mb-1">Center Latitude</label>
@@ -782,6 +813,11 @@ export default function AdminPanel() {
                 radiusKm={radiusKm}
                 height={380}
                 projectName={projectName || `${projectState} Project`}
+                pickerMode={true}
+                onCoordinateChange={(lat, lng) => {
+                  setCenterLat(lat)
+                  setCenterLng(lng)
+                }}
               />
             </div>
 
