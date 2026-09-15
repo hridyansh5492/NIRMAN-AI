@@ -10,6 +10,7 @@ const healthColor = (health: number) => {
 }
 
 const accentBar: Record<Project['status'], string> = {
+  Completed: 'bg-cyan-500',
   'On Track': 'bg-emerald-400',
   'Watch': 'bg-amber-400',
   'At Risk': 'bg-red-400',

@@ -1,4 +1,4 @@
-export type ProjectStatus = 'On Track' | 'Watch' | 'At Risk'
+export type ProjectStatus = 'Completed' | 'On Track' | 'Watch' | 'At Risk'
 
 export type Sector = 'Railways' | 'Roads & Highways' | 'Urban Transport' | 'Power & RE' | string
 

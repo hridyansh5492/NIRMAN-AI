@@ -80,8 +80,10 @@ def databases_status():
 
 
 
-def _status_from_risk(risk_level: str) -> str:
+def _status_from_risk(risk_level: str, physical_progress_pct: float = 0.0) -> str:
     """Map a model risk level back to the dashboard status vocabulary."""
+    if physical_progress_pct >= 100.0:
+        return "Completed"
     level = str(risk_level or "").strip()
     if level == "Low":
         return "On Track"
@@ -128,7 +130,7 @@ def _map_projects(limit: int = 200):
             "cost_cr": round(float(r.get("sanctioned_cost") or 0), 2),
             "physical_progress_pct": round(float(r.get("physical_progress_pct") or 0), 1),
             "expenditure_cr": round(float(r.get("cumulative_expenditure") or 0), 2),
-            "status": _status_from_risk(level),
+            "status": _status_from_risk(level, float(r.get("physical_progress_pct") or 0)),
             "risk_score": round(risk, 1),
             "risk_level": level,
         })
@@ -182,11 +184,13 @@ def format_project_card(row):
     final_risk = float(row.get("final_risk_score", 50) or 50)
     risk_lvl = str(row.get("risk_level", "Medium"))
 
-    status = "On Track" if risk_lvl == "Low" else ("Watch" if risk_lvl == "Medium" else "At Risk")
+    status = _status_from_risk(risk_lvl, phys)
     health = max(0, min(100, round(100 - final_risk, 1)))
 
     flags = []
-    if slip > 4:
+    if phys >= 100:
+        flags.append({"label": "Project completed", "tone": "positive"})
+    elif slip > 4:
         flags.append({"label": f"Schedule slip +{round(slip, 1)} mo", "tone": "negative"})
     if overrun > 10:
         flags.append({"label": f"Cost escalation +{round(overrun, 1)}%", "tone": "negative"})
@@ -398,7 +402,7 @@ def project_detail(project_id: str):
     result["id"] = project_id
     result["name"] = f"{st} {sec} Project ({project_id})"
     result["ministry"] = MINISTRY_MAP.get(sec, f"Ministry of {sec}")
-    result["status"] = "On Track" if result["risk_level"] == "Low" else ("Watch" if result["risk_level"] == "Medium" else "At Risk")
+    result["status"] = _status_from_risk(result["risk_level"], result["physical_progress_pct"])
     result["costOverrunRisk"] = round(result["cop_prob"] * 100, 1)
     result["timeOverrunRisk"] = round(result["top_prob"] * 100, 1)
     result["costVariance"] = round(result["cost_overrun_to_date_pct"], 1)

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   FileText,
   Download,
@@ -13,6 +14,7 @@ import {
   ShieldAlert,
   Building2,
   Calendar,
+  ArrowUpRight,
 } from 'lucide-react'
 import { getPortfolioSummary, getProjects } from '../services/api'
 import type { PortfolioSummary, Project } from '../types'
@@ -384,7 +386,15 @@ export default function Reports() {
                     <tbody className="divide-y divide-slate-200 dark:divide-white/5">
                       {criticalProjects.slice(0, 5).map((p) => (
                         <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-white/5">
-                          <td className="p-3 font-semibold text-ink-950 dark:text-white font-mono">{p.id}</td>
+                          <td className="p-3 font-semibold text-ink-950 dark:text-white font-mono">
+                            <Link
+                              to={`/projects/${p.id}`}
+                              className="text-cyan-600 dark:text-cyan-400 hover:underline inline-flex items-center gap-1"
+                            >
+                              {p.id}
+                              <ArrowUpRight size={11} />
+                            </Link>
+                          </td>
                           <td className="p-3">
                             <span className="font-medium text-ink-950 dark:text-white">{p.sector}</span>
                             <span className="text-slate-400 block text-[11px]">{p.state}</span>

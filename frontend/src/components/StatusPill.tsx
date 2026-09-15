@@ -1,6 +1,7 @@
 import type { ProjectStatus } from '../types'
 
 const textStyles: Record<ProjectStatus, string> = {
+  Completed: 'text-cyan-600 dark:text-cyan-400',
   'On Track': 'text-emerald-500',
   Watch: 'text-amber-500',
   'At Risk': 'text-red-500',

@@ -384,8 +384,8 @@ export default function Dashboard() {
 
   if (showIntro) {
     return (
-      <div className={`fixed inset-0 z-50 flex items-center justify-center bg-white transition-opacity duration-500 ease-in-out ${animateOut ? 'opacity-0' : 'opacity-100'}`}>
-        <video ref={videoRef} src={introVideo} autoPlay muted playsInline className="w-full h-full object-contain sm:object-cover bg-white" />
+      <div className={`fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-ink-950 transition-opacity duration-500 ease-in-out ${animateOut ? 'opacity-0' : 'opacity-100'}`}>
+        <video ref={videoRef} src={introVideo} autoPlay muted playsInline className="w-full h-full object-contain sm:object-cover bg-white dark:bg-ink-950" />
       </div>
     )
   }
@@ -777,7 +777,9 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {attentionList.map((item) => {
             const statusBadge =
-              item.status === 'At Risk'
+              item.status === 'Completed'
+                ? 'text-cyan-600 dark:text-cyan-400'
+                : item.status === 'At Risk'
                 ? 'text-red-500'
                 : item.status === 'Watch'
                 ? 'text-amber-500'

@@ -233,11 +233,13 @@ export default function MapView() {
                     <div className="shrink-0 text-right">
                       <p
                         className={`text-[11px] font-bold uppercase tracking-wide ${
-                          p.status === 'At Risk'
+                          p.status === 'Completed'
+                            ? 'text-cyan-600 dark:text-cyan-400'
+                            : p.status === 'At Risk'
                             ? 'text-red-500'
                             : p.status === 'Watch'
-                              ? 'text-amber-500'
-                              : 'text-emerald-500'
+                            ? 'text-amber-500'
+                            : 'text-emerald-500'
                         }`}
                       >
                         {p.status}
