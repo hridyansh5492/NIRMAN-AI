@@ -45,24 +45,42 @@ const sectors: Sector[] = [
 ]
 
 const statesList = [
-  'Maharashtra',
-  'Uttar Pradesh',
-  'Gujarat',
-  'Delhi',
-  'Karnataka',
-  'Tamil Nadu',
-  'West Bengal',
-  'Telangana',
-  'Rajasthan',
-  'Bihar',
-  'Madhya Pradesh',
-  'Kerala',
-  'Odisha',
-  'Punjab',
-  'Haryana',
-  'Assam',
-  'Jharkhand',
+  'Andaman & Nicobar',
   'Andhra Pradesh',
+  'Arunachal Pradesh',
+  'Assam',
+  'Bihar',
+  'Chandigarh',
+  'Chhattisgarh',
+  'Dadra & Nagar Haveli',
+  'Delhi',
+  'Goa',
+  'Gujarat',
+  'Haryana',
+  'Himachal Pradesh',
+  'Jammu & Kashmir',
+  'Jharkhand',
+  'Karnataka',
+  'Kerala',
+  'Ladakh',
+  'Lakshadweep',
+  'Madhya Pradesh',
+  'Maharashtra',
+  'Manipur',
+  'Meghalaya',
+  'Mizoram',
+  'Nagaland',
+  'Odisha',
+  'Puducherry',
+  'Punjab',
+  'Rajasthan',
+  'Sikkim',
+  'Tamil Nadu',
+  'Telangana',
+  'Tripura',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
 ]
 
 export default function AdminPanel() {
@@ -273,7 +291,7 @@ export default function AdminPanel() {
               <span>Oversight Directorate (Admin Panel)</span>
             </div>
             <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
-              National Infrastructure Administration Workspace
+              National Infrastructure Workspace
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
               Configure designated construction area lamina geofencing, assign contractors to projects under state packages, and inspect automated photo verification audits.

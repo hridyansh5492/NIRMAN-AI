@@ -74,7 +74,7 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
   const currentNavItems = useMemo(() => {
     if (role === 'admin') {
       return [
-        { to: '/admin', label: 'Admin Workspace' },
+        { to: '/admin', label: 'Workspace' },
         { to: '/projects', label: 'Projects' },
         { to: '/map', label: 'Project Map' },
         { to: '/intelligence', label: 'Intelligence' },
@@ -370,7 +370,7 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
                       className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-ink-800 text-slate-700 dark:text-slate-300 transition-colors"
                     >
                       <Building2 size={14} className="text-cyan-500" />
-                      <span>Admin Workspace</span>
+                      <span>Workspace</span>
                     </NavLink>
                     <button
                       onClick={() => {
