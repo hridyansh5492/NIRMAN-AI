@@ -554,7 +554,21 @@ export default function Dashboard() {
       <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard label="TOTAL PROJECTS" value={portfolioSummary ? `${portfolioSummary.total_projects}` : "317"} delta="Active ML catalog" sparkline={spark([10, 14, 12, 18, 20, 24], '#3FC1D6')} />
         <StatCard label="PORTFOLIO HEALTH" value={portfolioSummary ? `${portfolioSummary.avg_health}/100` : "74.5/100"} delta="ML composite index" sparkline={spark([8, 10, 9, 13, 15, 17], '#1FAE7A')} />
-        <StatCard label="AVG COST OVERRUN" value={portfolioSummary ? `+${portfolioSummary.avg_cost_overrun_pct}%` : "+7.8%"} delta="National drift" deltaTone="up-bad" sparkline={spark([6, 9, 11, 10, 15, 19], '#E8A33D')} />
+        <StatCard
+          label="AVG COST OVERRUN"
+          value={
+            portfolioSummary
+              ? `${portfolioSummary.avg_cost_overrun_pct > 0 ? '+' : ''}${portfolioSummary.avg_cost_overrun_pct}%`
+              : "+7.8%"
+          }
+          delta={portfolioSummary && portfolioSummary.avg_cost_overrun_pct < 0 ? "Cost savings" : "National drift"}
+          deltaTone={portfolioSummary && portfolioSummary.avg_cost_overrun_pct < 0 ? "down-good" : "up-bad"}
+          sparkline={
+            portfolioSummary && portfolioSummary.avg_cost_overrun_pct < 0
+              ? spark([12, 9, 7, 5, 2, 0], '#1FAE7A')
+              : spark([6, 9, 11, 10, 15, 19], '#E8A33D')
+          }
+        />
         <StatCard label="AVG TIME OVERRUN RISK" value={portfolioSummary ? `${portfolioSummary.avg_top_prob}%` : "46.1%"} delta="TOP model probability" sparkline={spark([4, 7, 9, 13, 16, 18], '#1FAE7A')} />
         <StatCard label="PROJECTS AT RISK" value={portfolioSummary ? `${portfolioSummary.projects_at_risk}` : "42"} delta="Critical + High tier" deltaTone="down-good" sparkline={spark([20, 18, 19, 16, 15, 14], '#E85D4E')} />
         <StatCard label="AVG COST OVERRUN RISK" value={portfolioSummary ? `${portfolioSummary.avg_cop_prob}%` : "38.2%"} delta="COP model probability" deltaTone="up-bad" sparkline={spark([5, 8, 7, 10, 12, 15], '#E8A33D')} />
