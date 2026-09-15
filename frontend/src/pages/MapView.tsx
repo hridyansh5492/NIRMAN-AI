@@ -252,11 +252,7 @@ export default function MapView() {
             </ul>
           )}
 
-          <p className="mt-4 rounded-lg bg-slate-50 dark:bg-ink-950 px-3 py-2.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-            Points plot from <code className="font-semibold">/api/projects?map=true</code>; the default{' '}
-            <code>/api/projects</code> payload is unchanged. Coordinates are functional centroids for
-            visualisation only — not geospatial survey positions.
-          </p>
+          {/* Points plot from /api/projects?map=true; the default /api/projects payload is unchanged. Coordinates are functional centroids for visualisation only — not geospatial survey positions. */}
         </div>
       </section>
     </div>
