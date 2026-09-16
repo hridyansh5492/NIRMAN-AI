@@ -5,19 +5,17 @@ import 'leaflet/dist/leaflet.css'
 import { isPointInsideLamina } from '../services/api'
 import { CheckCircle2, AlertTriangle, MapPin, Navigation } from 'lucide-react'
 
-const siteCenterPinIcon = L.divIcon({
-  className: 'custom-project-pin',
+const siteCenterDotIcon = L.divIcon({
+  className: 'custom-project-dot',
   html: `
-    <svg width="28" height="34" viewBox="0 0 24 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 0C5.373 0 0 5.373 0 12c0 8.25 10.5 17.25 11.35 17.97a1 1 0 001.3 0C13.5 29.25 24 20.25 24 12c0-6.627-5.373-12-12-12z" fill="#f59e0b" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>
-      <circle cx="12" cy="11" r="4.5" fill="#ffffff"/>
-      <circle cx="12" cy="11" r="2.2" fill="#f59e0b"/>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="7" cy="7" r="5.5" fill="#f59e0b" stroke="#ffffff" stroke-width="2"/>
     </svg>
   `,
-  iconSize: [28, 34],
-  iconAnchor: [14, 34],
-  popupAnchor: [0, -32],
-  tooltipAnchor: [0, -34],
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
+  popupAnchor: [0, -10],
+  tooltipAnchor: [0, -10],
 })
 
 interface GeofenceMapProps {
@@ -140,11 +138,7 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
         >
           <MapViewRecenter lat={centerLat} lng={centerLng} />
           <TileLayer
-            url={
-              dark
-                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
-            }
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           />
 
           {interactive && <ClickHandler onSelect={onCoordinateChange} />}
@@ -172,7 +166,7 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
           )}
 
           {/* Site Center Marker */}
-          <Marker position={[centerLat, centerLng]} icon={siteCenterPinIcon}>
+          <Marker position={[centerLat, centerLng]} icon={siteCenterDotIcon}>
             <Popup>
               <div className="text-xs font-sans text-slate-900 dark:text-slate-100">
                 <p className="font-bold text-amber-600 dark:text-amber-400">Site Center Pin</p>

@@ -22,34 +22,31 @@ function statusOf(p: MapProject): 'At Risk' | 'Watch' | 'On Track' {
   return 'At Risk'
 }
 
-/** Cache created pinpoint DivIcons so Leaflet reuses DOM icons efficiently */
-const pinIconCache: Record<string, L.DivIcon> = {}
+/** Cache created dot DivIcons so Leaflet reuses DOM elements efficiently */
+const dotIconCache: Record<string, L.DivIcon> = {}
 
-function getPinIcon(status: 'At Risk' | 'Watch' | 'On Track', isHighRisk: boolean = false): L.DivIcon {
+function getDotIcon(status: 'At Risk' | 'Watch' | 'On Track', isHighRisk: boolean = false): L.DivIcon {
   const color = STATUS_COLORS[status] ?? '#ef4444'
   const key = `${status}-${isHighRisk ? 'lg' : 'sm'}`
 
-  if (!pinIconCache[key]) {
-    const width = isHighRisk ? 28 : 24
-    const height = isHighRisk ? 34 : 30
+  if (!dotIconCache[key]) {
+    const size = isHighRisk ? 12 : 10
     const svg = `
-      <svg width="${width}" height="${height}" viewBox="0 0 24 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 0C5.373 0 0 5.373 0 12c0 8.25 10.5 17.25 11.35 17.97a1 1 0 001.3 0C13.5 29.25 24 20.25 24 12c0-6.627-5.373-12-12-12z" fill="${color}" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>
-        <circle cx="12" cy="11" r="4.5" fill="#ffffff"/>
-        <circle cx="12" cy="11" r="2.2" fill="${color}"/>
+      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 0.9}" fill="${color}" stroke="#ffffff" stroke-width="1.8"/>
       </svg>
     `
-    pinIconCache[key] = L.divIcon({
-      className: 'custom-project-pin',
+    dotIconCache[key] = L.divIcon({
+      className: 'custom-project-dot',
       html: svg,
-      iconSize: [width, height],
-      iconAnchor: [width / 2, height],
-      popupAnchor: [0, -height + 2],
-      tooltipAnchor: [0, -height],
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2 - 4],
+      tooltipAnchor: [0, -size / 2 - 2],
     })
   }
 
-  return pinIconCache[key]
+  return dotIconCache[key]
 }
 
 function formatCr(v: number): string {
@@ -61,7 +58,6 @@ interface ProjectMapProps {
   height?: number | string
   center?: [number, number]
   zoom?: number
-  /** Use the CARTO dark basemap (matches the site's dark theme). */
   dark?: boolean
 }
 
@@ -70,14 +66,10 @@ export default function ProjectMap({
   height = 380,
   center = [22.0, 79.0],
   zoom = 5,
-  dark = false,
 }: ProjectMapProps) {
-  const tileUrl = dark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-  const attribution = dark
-    ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  // Always use bright OpenStreetMap basemap (never switch to dark)
+  const tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 
   return (
     <div className="relative z-0 overflow-hidden rounded-lg" style={{ height }}>
@@ -104,7 +96,7 @@ export default function ProjectMap({
             <Marker
               key={p.id}
               position={[p.lat, p.lng]}
-              icon={getPinIcon(st, isHighRisk)}
+              icon={getDotIcon(st, isHighRisk)}
             >
               <Tooltip direction="top" opacity={1}>
                 <span className="text-xs font-semibold">

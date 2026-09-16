@@ -60,23 +60,26 @@ body {
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Custom Leaflet Pinpoint Marker Styles */
-.custom-project-pin {
+/* Custom Leaflet Project Dot Marker Styles */
+.custom-project-dot {
   background: transparent !important;
   border: none !important;
   cursor: pointer;
   outline: none;
-  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.custom-project-pin:hover {
-  transform: scale(1.28) translateY(-4px);
+.custom-project-dot:hover {
+  transform: scale(1.8);
   z-index: 9999 !important;
 }
 
-.custom-project-pin svg {
+.custom-project-dot svg {
   overflow: visible;
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
 }
 
 .leaflet-container,
@@ -85,8 +88,8 @@ body {
   border-radius: 8px;
 }
 
-.dark .leaflet-container {
-  background: #0b1220; /* match ink-950 while tiles load in dark mode */
+.leaflet-container {
+  background: #f1f5f9;
 }
 
 .leaflet-popup-content-wrapper {
