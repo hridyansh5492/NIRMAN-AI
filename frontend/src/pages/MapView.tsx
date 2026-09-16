@@ -200,7 +200,7 @@ export default function MapView() {
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> Watch</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> At risk</span>
             </span>
-            <span>Marker size ∝ composite risk score · pinned to state centroid</span>
+            <span>Color-coded pinpoint markers · pinned to project location</span>
           </div>
         </div>
 

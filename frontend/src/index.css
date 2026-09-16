@@ -60,6 +60,25 @@ body {
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Custom Leaflet Pinpoint Marker Styles */
+.custom-project-pin {
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.custom-project-pin:hover {
+  transform: scale(1.28) translateY(-4px);
+  z-index: 9999 !important;
+}
+
+.custom-project-pin svg {
+  overflow: visible;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35));
+}
+
 .leaflet-container,
 .leaflet-tile-pane,
 .leaflet-map-pane {

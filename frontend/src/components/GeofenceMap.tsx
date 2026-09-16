@@ -1,8 +1,24 @@
 import React, { useMemo, useEffect } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Polygon, Popup, Tooltip, useMapEvents, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import { MapContainer, TileLayer, CircleMarker, Marker, Polygon, Popup, Tooltip, useMapEvents, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { isPointInsideLamina } from '../services/api'
 import { CheckCircle2, AlertTriangle, MapPin, Navigation } from 'lucide-react'
+
+const siteCenterPinIcon = L.divIcon({
+  className: 'custom-project-pin',
+  html: `
+    <svg width="28" height="34" viewBox="0 0 24 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 8.25 10.5 17.25 11.35 17.97a1 1 0 001.3 0C13.5 29.25 24 20.25 24 12c0-6.627-5.373-12-12-12z" fill="#f59e0b" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>
+      <circle cx="12" cy="11" r="4.5" fill="#ffffff"/>
+      <circle cx="12" cy="11" r="2.2" fill="#f59e0b"/>
+    </svg>
+  `,
+  iconSize: [28, 34],
+  iconAnchor: [14, 34],
+  popupAnchor: [0, -32],
+  tooltipAnchor: [0, -34],
+})
 
 interface GeofenceMapProps {
   centerLat: number
@@ -156,16 +172,7 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
           )}
 
           {/* Site Center Marker */}
-          <CircleMarker
-            center={[centerLat, centerLng]}
-            radius={8}
-            pathOptions={{
-              color: '#ffffff',
-              fillColor: '#f59e0b',
-              fillOpacity: 1,
-              weight: 2,
-            }}
-          >
+          <Marker position={[centerLat, centerLng]} icon={siteCenterPinIcon}>
             <Popup>
               <div className="text-xs font-sans text-slate-900 dark:text-slate-100">
                 <p className="font-bold text-amber-600 dark:text-amber-400">Site Center Pin</p>
@@ -174,7 +181,7 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
                 </p>
               </div>
             </Popup>
-          </CircleMarker>
+          </Marker>
 
           {/* Photo Capture Marker */}
           {hasCoords && (
