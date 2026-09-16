@@ -124,11 +124,7 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
         >
           <MapViewRecenter lat={centerLat} lng={centerLng} />
           <TileLayer
-            url={
-              dark
-                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
-            }
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           />
 
           {interactive && <ClickHandler onSelect={onCoordinateChange} />}
@@ -146,7 +142,7 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
               }}
             >
               <Tooltip sticky>
-                <div className="text-xs font-sans">
+                <div className="text-xs font-sans text-slate-900">
                   <strong>{projectName}</strong>
                   <br />
                   Designated Construction Zone ({radiusKm} km lamina)
@@ -167,9 +163,9 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
             }}
           >
             <Popup>
-              <div className="text-xs font-sans text-slate-900 dark:text-slate-100">
-                <p className="font-bold text-amber-600 dark:text-amber-400">Site Center Pin</p>
-                <p className="text-slate-600 dark:text-slate-300">
+              <div className="text-xs font-sans text-slate-900">
+                <p className="font-bold text-amber-600">Site Center Pin</p>
+                <p className="text-slate-600">
                   Lat: {centerLat.toFixed(4)}, Lng: {centerLng.toFixed(4)}
                 </p>
               </div>
@@ -189,18 +185,18 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
               }}
             >
               <Popup>
-                <div className="text-xs font-sans text-slate-900 dark:text-slate-100">
-                  <p className={`font-bold ${isInside ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                <div className="text-xs font-sans text-slate-900">
+                  <p className={`font-bold ${isInside ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {isInside ? '✓ Photo Capture: Inside Lamina' : '✗ Photo Capture: Outside Lamina'}
                   </p>
-                  <p className="text-slate-600 dark:text-slate-300">
+                  <p className="text-slate-600">
                     Lat: {(currentLat as number).toFixed(4)}, Lng: {(currentLng as number).toFixed(4)}
                   </p>
-                  <p className="text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-slate-500 mt-1">
                     Distance: {distanceKm} km from center
                   </p>
                   {!isInside && (
-                    <p className="text-rose-600 dark:text-rose-400 font-semibold mt-1">
+                    <p className="text-rose-600 font-semibold mt-1">
                       Report will be rejected for progress calculation
                     </p>
                   )}
@@ -211,17 +207,17 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
         </MapContainer>
 
         {/* Map Legend Overlay */}
-        <div className="absolute bottom-3 left-3 z-[400] bg-white/90 dark:bg-ink-900/90 backdrop-blur rounded-xl p-2.5 shadow-md border border-slate-200 dark:border-ink-800 text-[11px] space-y-1">
+        <div className="absolute bottom-3 left-3 z-[400] bg-white/95 backdrop-blur rounded-xl p-2.5 shadow-md border border-slate-200 text-[11px] space-y-1">
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-amber-500 border border-white shrink-0" />
-            <span className="text-slate-700 dark:text-slate-300">Official Site Center</span>
+            <span className="text-slate-700">Official Site Center</span>
           </div>
           <div className="flex items-center gap-2">
             <span
               className="h-3 w-3 rounded-sm border shrink-0"
               style={{ borderColor: polygonColor, backgroundColor: `${polygonColor}33` }}
             />
-            <span className="text-slate-700 dark:text-slate-300">
+            <span className="text-slate-700">
               Construction Area Lamina (Permitted)
             </span>
           </div>
@@ -232,13 +228,13 @@ export const GeofenceMap: React.FC<GeofenceMapProps> = ({
                   isInside ? 'bg-emerald-500' : 'bg-rose-500 animate-ping'
                 }`}
               />
-              <span className={isInside ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-rose-600 dark:text-rose-400 font-semibold'}>
+              <span className={isInside ? 'text-emerald-600 font-semibold' : 'text-rose-600 font-semibold'}>
                 {isInside ? 'Photo Capture (Inside)' : 'Photo Capture (Violation)'}
               </span>
             </div>
           )}
           {interactive && (
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-100 dark:border-ink-800">
+            <p className="text-[10px] text-slate-500 pt-1 border-t border-slate-100">
               Click anywhere on the map to pin/test coordinates
             </p>
           )}

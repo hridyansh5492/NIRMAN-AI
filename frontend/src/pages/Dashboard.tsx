@@ -828,7 +828,7 @@ export default function Dashboard() {
           <ProjectMapSafe
             projects={mapProjects}
             height={380}
-            dark={document.documentElement.classList.contains('dark')}
+            dark={false}
           />
           <div className="flex items-center justify-between mt-3 text-[11px] text-slate-500">
             <span className="flex items-center gap-3">
