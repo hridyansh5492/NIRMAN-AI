@@ -259,3 +259,84 @@ def generate_portfolio_narrative(
             "error": f"OpenRouter request failed: {exc}",
         }
 
+
+_RISK_SURFACE_SYSTEM_PROMPT = (
+    "You are the Senior Geospatial & Portfolio Risk Advisor to the Ministry of Statistics "
+    "and Programme Implementation (MoSPI) and PM GatiShakti Apex Steering Committee. "
+    "You are given structured telemetry from the 'Risk Surface Index' and the plotted "
+    "interactive national project map (including counts of At Risk, Watch, On Track projects, and Average Risk Score). "
+    "Write an authoritative, high-impact 'Why this matters' executive brief (2-3 concise sentences, "
+    "no markdown formatting, no bullet points). "
+    "(1) Explain the operational significance of the current risk breakdown (e.g. proportion of at-risk schemes vs on-track schemes); "
+    "(2) Explain why correlating model risk scores directly against regional geographic clusters matters for early warning intervention before budget and schedule overruns compound. "
+    "Ground your synthesis strictly in the provided figures. Write in crisp, professional English."
+)
+
+
+def generate_risk_surface_narrative(
+    surface_data: Dict[str, Any],
+    *,
+    model: Optional[str] = None,
+    timeout: Optional[httpx.Timeout] = None,
+) -> Dict[str, Any]:
+    """Call OpenRouter to generate an executive 'Why this matters' brief for the Risk Surface Index."""
+    cfg = get_config()
+    model = model or cfg["model"]
+
+    if not cfg["api_key"]:
+        return {
+            "narrative": None,
+            "model": model,
+            "available": False,
+            "error": "OPENROUTER_API_KEY is not configured",
+        }
+
+    url = f"{cfg['base_url'].rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {cfg['api_key']}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": _RISK_SURFACE_SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(surface_data, ensure_ascii=False, indent=2)},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 300,
+    }
+
+    try:
+        with httpx.Client(timeout=timeout or _TIMEOUT) as client:
+            resp = client.post(url, headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+        narrative = (data.get("choices") or [{}])[0].get("message", {}).get("content", "").strip()
+        if not narrative:
+            return {
+                "narrative": None,
+                "model": model,
+                "available": True,
+                "error": "OpenRouter returned an empty response",
+            }
+        return {"narrative": narrative, "model": model, "available": True, "error": None}
+    except httpx.HTTPStatusError as exc:
+        detail = ""
+        try:
+            detail = exc.response.text[:300]
+        except Exception:
+            pass
+        return {
+            "narrative": None,
+            "model": model,
+            "available": True,
+            "error": f"OpenRouter HTTP {exc.response.status_code}: {detail}",
+        }
+    except Exception as exc:
+        return {
+            "narrative": None,
+            "model": model,
+            "available": True,
+            "error": f"OpenRouter request failed: {exc}",
+        }
+

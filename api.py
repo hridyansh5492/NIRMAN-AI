@@ -1028,6 +1028,78 @@ def llm_portfolio_summary(refresh: bool = False):
     return result
 
 
+class RiskSurfaceNarrativeRequest(BaseModel):
+    total: Optional[int] = 317
+    at_risk: Optional[int] = 73
+    watch: Optional[int] = 42
+    on_track: Optional[int] = 202
+    avg_risk: Optional[float] = 36.3
+    refresh: Optional[bool] = False
+
+
+_risk_surface_narrative_cache = {"data": None, "timestamp": 0.0, "key": None}
+
+
+@app.post("/api/llm/risk-surface-narrative")
+@app.get("/api/llm/risk-surface-narrative")
+def llm_risk_surface_narrative(
+    total: Optional[int] = None,
+    at_risk: Optional[int] = None,
+    watch: Optional[int] = None,
+    on_track: Optional[int] = None,
+    avg_risk: Optional[float] = None,
+    refresh: bool = False,
+    req: Optional[RiskSurfaceNarrativeRequest] = None
+):
+    import time
+    now = time.time()
+
+    tot = (req.total if req and req.total is not None else total) or 317
+    ar = (req.at_risk if req and req.at_risk is not None else at_risk) or 73
+    wat = (req.watch if req and req.watch is not None else watch) or 42
+    ot = (req.on_track if req and req.on_track is not None else on_track) or 202
+    avg = (req.avg_risk if req and req.avg_risk is not None else avg_risk) or 36.3
+    refr = (req.refresh if req and req.refresh is not None else refresh)
+
+    cache_key = f"{tot}_{ar}_{wat}_{ot}_{avg}"
+    if not refr and _risk_surface_narrative_cache["data"] and _risk_surface_narrative_cache.get("key") == cache_key and (now - _risk_surface_narrative_cache["timestamp"] < 600):
+        return _risk_surface_narrative_cache["data"]
+
+    context = {
+        "plotted_projects_count": tot,
+        "at_risk_projects_count": ar,
+        "at_risk_percentage": f"{round((ar / max(1, tot)) * 100, 1)}%",
+        "watch_projects_count": wat,
+        "on_track_projects_count": ot,
+        "average_risk_score": f"{avg}/100",
+        "primary_risk_drivers": "Schedule slip exposure and cost overrun drift across state clusters",
+    }
+
+    out = llm.generate_risk_surface_narrative(context)
+    source = "openrouter" if out.get("narrative") else "template"
+    at_risk_pct = round((ar / max(1, tot)) * 100)
+    fallback_narrative = (
+        f"The Risk Surface Index visualizes {tot} active national projects, where {at_risk_pct}% ({ar} schemes) are "
+        f"flagged in the critical risk tier with an average risk score of {avg}/100. "
+        f"Correlating multi-dimensional XGBoost risk predictions directly with regional clusters enables PM GatiShakti "
+        f"taskforces to detect systemic delivery bottlenecks before time and cost overruns escalate across inter-state corridors."
+    )
+
+    result = {
+        "narrative": out.get("narrative") or fallback_narrative,
+        "model": out.get("model", "google/gemini-2.5-flash"),
+        "available": out.get("available", True),
+        "error": out.get("error"),
+        "source": source,
+        "metrics_used": context,
+    }
+
+    _risk_surface_narrative_cache["data"] = result
+    _risk_surface_narrative_cache["key"] = cache_key
+    _risk_surface_narrative_cache["timestamp"] = now
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Contractor Portal, Geofence Verification & Unified Auth
 # ---------------------------------------------------------------------------
