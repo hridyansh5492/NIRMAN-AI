@@ -200,18 +200,19 @@ export default function AdminPanel() {
     setIsAssigning(true)
     setAssignSuccessMsg(null)
     try {
+      const numericVal = contractValue ? parseFloat(contractValue) : (assignModalProject.sanctioned_cost ?? assignModalProject.cost_cr)
       await assignContractor(
         assignModalProject.id,
         selectedContractorId,
         packageName || `Civil Package -- ${assignModalProject.id}`,
-        contractValue ? parseFloat(contractValue) : assignModalProject.sanctioned_cost
+        numericVal
       )
-      setAssignSuccessMsg(`Successfully assigned ${assignModalProject.id} to ${selectedContractorId}!`)
+      setAssignSuccessMsg(`Successfully updated package value to ₹${numericVal} Cr and assigned ${assignModalProject.id} across all databases!`)
       loadStateProjects(selectedState)
       setTimeout(() => {
         setAssignModalProject(null)
         setAssignSuccessMsg(null)
-      }, 1500)
+      }, 1800)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to assign contractor')
     } finally {
@@ -451,15 +452,21 @@ export default function AdminPanel() {
                         {p.sector} • {p.state}
                       </p>
 
-                      {/* Progress Metrics */}
-                      <div className="pt-2 grid grid-cols-2 gap-2 text-xs">
+                      {/* Progress Metrics & Sanctioned Package Value */}
+                      <div className="pt-2 grid grid-cols-3 gap-1.5 text-xs">
+                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-850">
+                          <p className="text-[10px] text-slate-400">Sanctioned Cost</p>
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                            ₹{p.sanctioned_cost ?? p.cost_cr ?? 0} Cr
+                          </p>
+                        </div>
                         <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-850">
                           <p className="text-[10px] text-slate-400">Physical Progress</p>
-                          <p className="text-sm font-bold text-brand-orange">{p.physicalProgress}%</p>
+                          <p className="text-xs font-bold text-brand-orange">{p.physicalProgress}%</p>
                         </div>
                         <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-850">
                           <p className="text-[10px] text-slate-400">Health Score</p>
-                          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{p.health}/100</p>
+                          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{p.health}/100</p>
                         </div>
                       </div>
 
@@ -477,6 +484,12 @@ export default function AdminPanel() {
                         <p className="font-bold text-slate-900 dark:text-white truncate">
                           {assignedC ? assignedC.company_name : 'No contractor designated'}
                         </p>
+                        <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 border-t border-amber-500/15">
+                          <span>Package Value:</span>
+                          <span className="font-mono font-bold text-amber-700 dark:text-amber-300">
+                            ₹{p.sanctioned_cost ?? p.cost_cr ?? 0} Cr
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -485,7 +498,8 @@ export default function AdminPanel() {
                         setAssignModalProject(p)
                         if (assignedC) setSelectedContractorId(assignedC.contractor_id)
                         setPackageName(`Package Works -- ${p.id}`)
-                        setContractValue(String(p.sanctioned_cost || '1200'))
+                        const defaultCost = p.sanctioned_cost ?? p.cost_cr
+                        setContractValue(defaultCost !== undefined && defaultCost !== null ? String(defaultCost) : '')
                         setAssignSuccessMsg(null)
                       }}
                       className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-cyan-50 dark:bg-ink-800 dark:hover:bg-cyan-950/40 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 text-xs font-bold border border-slate-200 dark:border-ink-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
@@ -558,16 +572,26 @@ export default function AdminPanel() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Sanctioned Package Value (₹ Cr):
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Sanctioned Package Value (₹ Cr):
+                      </label>
+                      <span className="text-[10px] font-semibold text-cyan-600 dark:text-cyan-400">
+                        Dual-DB Auto-Sync (PostgreSQL + SQLite)
+                      </span>
+                    </div>
                     <input
                       type="number"
+                      step="any"
+                      required
                       value={contractValue}
                       onChange={(e) => setContractValue(e.target.value)}
-                      placeholder="e.g. 1250"
-                      className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white outline-none focus:border-cyan-500"
+                      placeholder={String(assignModalProject.sanctioned_cost ?? assignModalProject.cost_cr ?? 0)}
+                      className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-ink-700 bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white font-bold outline-none focus:border-cyan-500"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Project baseline: ₹{assignModalProject.sanctioned_cost ?? assignModalProject.cost_cr ?? 0} Cr. When increased or updated, this synchronizes automatically across Supabase PostgreSQL and SQLite databases.
+                    </p>
                   </div>
 
                   <div className="flex gap-2 pt-2">

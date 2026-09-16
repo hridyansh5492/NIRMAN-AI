@@ -670,6 +670,84 @@ def get_all_database_status() -> Dict[str, Any]:
     }
 
 
+def update_project_sanctioned_cost(
+    project_id: str,
+    sanctioned_cost: float,
+    contractor_id: Optional[str] = None,
+    package_name: Optional[str] = None
+) -> dict:
+    """Synchronously updates the sanctioned package value for a project across ALL databases:
+    1. SQLite project_monitoring.db (projects.sanctioned_cost and contractor_assignments)
+    2. SQLite contractors_admin.db (contractor_assignments)
+    3. Supabase PostgreSQL (projects.sanctioned_cost and contractor_assignments)
+    """
+    results = {
+        "project_id": project_id,
+        "sanctioned_cost": float(sanctioned_cost),
+        "sqlite_core_updated": False,
+        "sqlite_admin_updated": False,
+        "supabase_updated": False,
+    }
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # 1. Update SQLite project_monitoring.db
+    try:
+        conn = sqlite3.connect(DB_CORE)
+        cur = conn.cursor()
+        cur.execute("UPDATE projects SET sanctioned_cost = ? WHERE project_id = ?", (sanctioned_cost, project_id))
+        if contractor_id:
+            cur.execute("""
+            INSERT OR REPLACE INTO contractor_assignments
+            (project_id, contractor_id, package_name, assigned_date, contract_value_cr)
+            VALUES (?, ?, ?, ?, ?)
+            """, (project_id, contractor_id, package_name or f"Package Contract -- {project_id}", today, sanctioned_cost))
+        conn.commit()
+        conn.close()
+        results["sqlite_core_updated"] = True
+    except Exception as e:
+        results["sqlite_core_error"] = str(e)
+
+    # 2. Update SQLite contractors_admin.db
+    try:
+        conn_adm = sqlite3.connect(DB_CONTRACTORS_ADMIN)
+        cur_adm = conn_adm.cursor()
+        if contractor_id:
+            cur_adm.execute("""
+            INSERT OR REPLACE INTO contractor_assignments
+            (project_id, contractor_id, package_name, assigned_date, contract_value_cr)
+            VALUES (?, ?, ?, ?, ?)
+            """, (project_id, contractor_id, package_name or f"Package Contract -- {project_id}", today, sanctioned_cost))
+        conn_adm.commit()
+        conn_adm.close()
+        results["sqlite_admin_updated"] = True
+    except Exception as e:
+        results["sqlite_admin_error"] = str(e)
+
+    # 3. Update Supabase PostgreSQL if configured
+    url = get_database_url()
+    if url:
+        try:
+            with psycopg2.connect(url) as pg_conn:
+                with pg_conn.cursor() as pg_cur:
+                    pg_cur.execute("UPDATE projects SET sanctioned_cost = %s WHERE project_id = %s", (sanctioned_cost, project_id))
+                    if contractor_id:
+                        pg_cur.execute("""
+                        INSERT INTO contractor_assignments
+                        (project_id, contractor_id, package_name, assigned_date, contract_value_cr)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (project_id, contractor_id) DO UPDATE SET
+                            contract_value_cr = EXCLUDED.contract_value_cr,
+                            package_name = EXCLUDED.package_name,
+                            assigned_date = EXCLUDED.assigned_date
+                        """, (project_id, contractor_id, package_name or f"Package Contract -- {project_id}", today, sanctioned_cost))
+                pg_conn.commit()
+            results["supabase_updated"] = True
+        except Exception as e:
+            results["supabase_error"] = str(e)
+
+    return results
+
+
 if __name__ == "__main__":
     print("Initializing dedicated databases...")
     init_all_databases()

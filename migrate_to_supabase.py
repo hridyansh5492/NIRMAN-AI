@@ -277,11 +277,19 @@ def init_schema():
         for stmt in DDL_SCHEMA.split(";"):
             cleaned = stmt.strip()
             if cleaned:
-                conn.execute(text(cleaned))
-        # Ensure new columns exist on already created tables
-        conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS completion_date TEXT"))
-        conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS date_of_completion TEXT"))
-        conn.execute(text("ALTER TABLE project_snapshots ADD COLUMN IF NOT EXISTS completion_date TEXT"))
+                try:
+                    conn.execute(text(cleaned))
+                except Exception as e:
+                    print(f"  Note on schema stmt: {e}")
+        for alt in [
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS completion_date TEXT",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS date_of_completion TEXT",
+            "ALTER TABLE project_snapshots ADD COLUMN IF NOT EXISTS completion_date TEXT",
+        ]:
+            try:
+                conn.execute(text(alt))
+            except Exception as e:
+                pass
     print("Schema applied successfully!")
 
 

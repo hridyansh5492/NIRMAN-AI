@@ -222,6 +222,8 @@ def format_project_card(row):
         "originalCompletion": str(row.get("original_end_date") or "31 Dec 2028"),
         "predictedCompletion": comp_date_str if (status == "Completed" and comp_date_str) else str(row.get("revised_end_date") or "30 Jun 2030"),
         "expenditure": f"₹ {round(exp, 1):,} Cr" if exp > 0 else f"₹ {round(sanctioned, 1):,} Cr",
+        "sanctioned_cost": round(sanctioned, 2),
+        "cost_cr": round(sanctioned, 2),
         "costVariance": round(overrun, 1),
         "timeVariance": round(slip, 1),
         "currentStageIndex": 4 if phys >= 100.0 else 3 if phys > 0 else 0,
@@ -1640,34 +1642,26 @@ class AssignContractorRequest(BaseModel):
 @app.post("/api/admin/assign-contractor")
 def admin_assign_contractor(req: AssignContractorRequest):
     _ensure_contractor_schema()
-    conn_admin = db_manager.get_contractors_admin_conn()
-    try:
-        conn_admin.execute("""
-        INSERT OR REPLACE INTO contractor_assignments
-        (project_id, contractor_id, package_name, assigned_date, contract_value_cr)
-        VALUES (?, ?, ?, ?, ?)
-        """, (
-            req.project_id,
-            req.contractor_id,
-            req.package_name or f"Package Contract -- {req.project_id}",
-            datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-            req.contract_value_cr or 1200.0,
-        ))
-        conn_admin.commit()
-    finally:
-        conn_admin.close()
+    
+    # Determine the contract value: user-specified or existing project sanctioned_cost
+    val = req.contract_value_cr
+    if val is None or val <= 0:
+        try:
+            curr_df = q("SELECT sanctioned_cost FROM projects WHERE project_id = ?", params=[req.project_id])
+            if not curr_df.empty and pd.notna(curr_df.iloc[0]["sanctioned_cost"]):
+                val = float(curr_df.iloc[0]["sanctioned_cost"])
+            else:
+                val = 1200.0
+        except Exception:
+            val = 1200.0
 
-    # Mirror to core DB
-    try:
-        with db_manager.get_core_conn() as c_core:
-            c_core.execute("""
-            INSERT OR REPLACE INTO contractor_assignments
-            (project_id, contractor_id, package_name, assigned_date, contract_value_cr)
-            VALUES (?, ?, ?, ?, ?)
-            """, (req.project_id, req.contractor_id, req.package_name or f"Package Contract -- {req.project_id}", datetime.now(timezone.utc).strftime("%Y-%m-%d"), req.contract_value_cr or 1200.0))
-            c_core.commit()
-    except Exception:
-        pass
+    # Synchronously update ALL databases: SQLite project_monitoring.db, contractors_admin.db, and Supabase PostgreSQL
+    sync_res = db_manager.update_project_sanctioned_cost(
+        project_id=req.project_id,
+        sanctioned_cost=val,
+        contractor_id=req.contractor_id,
+        package_name=req.package_name or f"Package Contract -- {req.project_id}"
+    )
 
     mock_data.EXPLICIT_ASSIGNMENTS[req.project_id] = req.contractor_id
     c = mock_data.get_contractor(req.contractor_id)
@@ -1675,7 +1669,32 @@ def admin_assign_contractor(req: AssignContractorRequest):
         "status": "success",
         "project_id": req.project_id,
         "contractor": c,
-        "message": f"Assigned project {req.project_id} to {c['company_name'] if c else req.contractor_id}"
+        "contract_value_cr": val,
+        "sync_details": sync_res,
+        "message": f"Assigned project {req.project_id} to {c['company_name'] if c else req.contractor_id} with package value ₹{val} Cr across all databases"
+    }
+
+
+class UpdateSanctionedCostRequest(BaseModel):
+    sanctioned_cost: float
+    contractor_id: Optional[str] = None
+    package_name: Optional[str] = None
+
+
+@app.post("/api/admin/projects/{project_id}/update-sanctioned-cost")
+def admin_update_sanctioned_cost(project_id: str, req: UpdateSanctionedCostRequest):
+    sync_res = db_manager.update_project_sanctioned_cost(
+        project_id=project_id,
+        sanctioned_cost=req.sanctioned_cost,
+        contractor_id=req.contractor_id,
+        package_name=req.package_name
+    )
+    return {
+        "status": "success",
+        "project_id": project_id,
+        "sanctioned_cost": req.sanctioned_cost,
+        "sync_details": sync_res,
+        "message": f"Updated sanctioned package value for {project_id} to ₹{req.sanctioned_cost} Cr across all databases"
     }
 
 

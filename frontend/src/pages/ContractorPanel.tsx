@@ -50,6 +50,29 @@ export default function ContractorPanel() {
   const [financialExpenditure, setFinancialExpenditure] = useState<number>(120)
   const [notes, setNotes] = useState<string>('')
 
+  // Determine baseline progress locked to the last approved report or master project baseline
+  const lastApprovedProgress = useMemo(() => {
+    if (!selectedProject) return 0
+    const projectApprovedSubs = submissions.filter(
+      (s) =>
+        s.project_id === selectedProject.id &&
+        (Boolean(s.counts_towards_progress) ||
+          ['accepted', 'auto_approved', 'manually_approved', 'approved'].includes(s.verification_status))
+    )
+    let maxApproved = Number(selectedProject.approved_progress_pct ?? selectedProject.physicalProgress ?? 0)
+    for (const s of projectApprovedSubs) {
+      if (s.physical_progress_pct !== undefined && Number(s.physical_progress_pct) > maxApproved) {
+        maxApproved = Number(s.physical_progress_pct)
+      }
+    }
+    return Math.min(100, Math.max(0, Math.round(maxApproved * 10) / 10))
+  }, [selectedProject, submissions])
+
+  // Ensure reported progress never falls below last approved baseline
+  useEffect(() => {
+    setPhysicalProgress((prev) => Math.max(prev, lastApprovedProgress))
+  }, [lastApprovedProgress])
+
   // Camera capture states (Strictly on-ground camera, no file upload)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -137,6 +160,10 @@ export default function ContractorPanel() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera device API is not supported in this browser environment.')
       }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop())
+        streamRef.current = null
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
@@ -146,11 +173,11 @@ export default function ContractorPanel() {
         audio: false,
       })
       streamRef.current = stream
+      setCameraActive(true)
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         videoRef.current.play().catch(() => {})
       }
-      setCameraActive(true)
     } catch (err: any) {
       console.warn('Camera error', err)
       const msg =
@@ -163,6 +190,16 @@ export default function ContractorPanel() {
       setCameraActive(false)
     }
   }
+
+  // Ensure video element immediately receives stream when cameraActive is triggered
+  useEffect(() => {
+    if (cameraActive && streamRef.current && videoRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current
+      }
+      videoRef.current.play().catch((err) => console.warn('Video stream auto-play failed:', err))
+    }
+  }, [cameraActive])
 
   // Live Geofence Check
   const isInsideLamina = useMemo(() => {
@@ -295,7 +332,20 @@ export default function ContractorPanel() {
   const selectProject = (p: ContractorProject) => {
     setSelectedProject(p)
     setSubmitResult(null)
-    setPhysicalProgress(p.physicalProgress || 60)
+    const pSubs = submissions.filter(
+      (s) =>
+        s.project_id === p.id &&
+        (Boolean(s.counts_towards_progress) ||
+          ['accepted', 'auto_approved', 'manually_approved', 'approved'].includes(s.verification_status))
+    )
+    let baseProg = Number(p.approved_progress_pct ?? p.physicalProgress ?? 0)
+    for (const s of pSubs) {
+      if (s.physical_progress_pct !== undefined && Number(s.physical_progress_pct) > baseProg) {
+        baseProg = Number(s.physical_progress_pct)
+      }
+    }
+    const lockedProg = Math.min(100, Math.max(0, Math.round(baseProg * 10) / 10))
+    setPhysicalProgress(lockedProg)
     if (p.geofence) {
       setGeofence(p.geofence)
     } else {
@@ -314,6 +364,11 @@ export default function ContractorPanel() {
     e.preventDefault()
     if (!selectedProject) {
       alert('Please select a project first.')
+      return
+    }
+
+    if (physicalProgress < lastApprovedProgress) {
+      alert(`Reported physical progress (${physicalProgress}%) cannot be decreased below the last approved report progress (${lastApprovedProgress}%).`)
       return
     }
 
@@ -503,9 +558,12 @@ export default function ContractorPanel() {
                     {/* Progress Bar */}
                     <div className="mt-3 pt-3 border-t border-slate-100 dark:border-ink-800 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-500">Physical Progress:</span>
+                        <span className="text-slate-500">Progress:</span>
                         <span className="font-bold text-slate-900 dark:text-white">
                           {p.physicalProgress}%
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          (₹{p.sanctioned_cost ?? p.cost_cr ?? 0} Cr)
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-semibold text-[11px]">
@@ -589,7 +647,7 @@ export default function ContractorPanel() {
                     {selectedProject.name}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                    ID: {selectedProject.id} • Sanctioned: {selectedProject.expenditure}
+                    ID: {selectedProject.id} • Sanctioned Package Value: ₹{selectedProject.sanctioned_cost ?? selectedProject.cost_cr ?? selectedProject.expenditure} Cr
                   </p>
                 </div>
               </div>
@@ -597,30 +655,48 @@ export default function ContractorPanel() {
               {/* Progress Inputs Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 space-y-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Reported Physical Progress (%)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Reported Physical Progress (%)
+                    </label>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                      <Lock size={11} /> Locked Min: {lastApprovedProgress}%
+                    </span>
+                  </div>
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
-                      min="0"
-                      max="100"
+                      min={lastApprovedProgress}
+                      max={100}
+                      step={0.5}
                       value={physicalProgress}
-                      onChange={(e) => setPhysicalProgress(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || lastApprovedProgress
+                        setPhysicalProgress(Math.max(lastApprovedProgress, Math.min(100, val)))
+                      }}
                       className="flex-1 accent-brand-orange cursor-pointer"
                     />
                     <input
                       type="number"
-                      min="0"
-                      max="100"
+                      min={lastApprovedProgress}
+                      max={100}
+                      step={0.1}
                       value={physicalProgress}
-                      onChange={(e) => setPhysicalProgress(Number(e.target.value))}
-                      className="w-16 px-2 py-1 text-sm font-bold text-center border border-slate-200 dark:border-ink-700 rounded-lg bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white"
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value)
+                        if (isNaN(val)) {
+                          setPhysicalProgress(lastApprovedProgress)
+                        } else {
+                          setPhysicalProgress(Math.max(lastApprovedProgress, Math.min(100, val)))
+                        }
+                      }}
+                      className="w-20 px-2 py-1 text-sm font-bold text-center border border-slate-200 dark:border-ink-700 rounded-lg bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white"
                     />
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    Current official: {selectedProject.physicalProgress}%
-                  </p>
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Baseline (Last Approved): <strong className="text-slate-700 dark:text-slate-300 font-mono">{lastApprovedProgress}%</strong></span>
+                    <span>Ceiling: 100%</span>
+                  </div>
                 </div>
 
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 space-y-2">
@@ -693,26 +769,45 @@ export default function ContractorPanel() {
                   /* Live Camera Viewfinder */
                   <div className="relative rounded-2xl overflow-hidden border-2 border-brand-orange bg-black aspect-video max-h-80 flex flex-col items-center justify-center shadow-xl">
                     <video
-                      ref={videoRef}
+                      ref={(node) => {
+                        videoRef.current = node
+                        if (node && streamRef.current && node.srcObject !== streamRef.current) {
+                          node.srcObject = streamRef.current
+                          node.play().catch((err) => console.warn('Video play on ref callback error:', err))
+                        }
+                      }}
                       autoPlay
                       playsInline
                       muted
+                      onLoadedMetadata={() => {
+                        videoRef.current?.play().catch(() => {})
+                      }}
                       className="w-full h-full object-cover"
                     />
 
-                    {/* HUD Status Bar */}
+                    {/* HUD Status Bar & Close Button */}
                     <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full border border-white/15 text-white text-[11px] font-mono shadow">
                       <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-ping" />
                       <span className="font-bold text-rose-400">REC</span>
                       <span>CAMERA ACTIVE</span>
                     </div>
 
-                    <div className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full border border-white/15 text-slate-200 text-[10px] font-mono shadow">
-                      {gpsLat !== null && gpsLng !== null ? (
-                        <span>GPS: {gpsLat.toFixed(4)}, {gpsLng.toFixed(4)}</span>
-                      ) : (
-                        <span className="text-amber-400">WAITING FOR GPS...</span>
-                      )}
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <div className="bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full border border-white/15 text-slate-200 text-[10px] font-mono shadow">
+                        {gpsLat !== null && gpsLng !== null ? (
+                          <span>GPS: {gpsLat.toFixed(4)}, {gpsLng.toFixed(4)}</span>
+                        ) : (
+                          <span className="text-amber-400">WAITING FOR GPS...</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        className="p-1 rounded-full bg-slate-900/80 hover:bg-slate-800 text-white/80 hover:text-white border border-white/15 backdrop-blur cursor-pointer"
+                        title="Close Camera"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
 
                     {/* Center Targeting Reticle */}
