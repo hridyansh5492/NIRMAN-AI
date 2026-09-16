@@ -131,33 +131,48 @@ export default function Intelligence() {
 
       {/* Model Detection Highlights */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 mb-4">
-            <Target size={18} />
-          </span>
-          <p className="text-xs font-semibold tracking-wide text-slate-400 mb-1">DETECT (ML RISK ENGINE)</p>
-          <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{atRisk}</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Flagged at-risk schemes (out of {total} total)
+        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">
+          <div>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 mb-4">
+              <Target size={18} />
+            </span>
+            <p className="text-xs font-semibold tracking-wide text-slate-400 mb-1">DETECT (ML RISK ENGINE)</p>
+            <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{atRisk}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Flagged at-risk schemes (out of {total} total)
+            </p>
+          </div>
+          <p className="mt-4 pt-3 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5 leading-snug">
+            Identifies infrastructure projects crossing combined risk thresholds.
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/40 text-red-500 mb-4">
-            <TrendingUp size={18} />
-          </span>
-          <p className="text-xs font-semibold tracking-wide text-slate-400 mb-1">PREDICT (TOP MODEL)</p>
-          <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{avgTop}%</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">National average time-slip probability</p>
+        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">
+          <div>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/40 text-red-500 mb-4">
+              <TrendingUp size={18} />
+            </span>
+            <p className="text-xs font-semibold tracking-wide text-red-500 dark:text-red-400 mb-1">TOP RISK</p>
+            <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{avgTop}%</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">National average time-slip probability</p>
+          </div>
+          <p className="mt-4 pt-3 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5 leading-snug">
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">TOP:</strong> Predicts the probability of project completion delays past the scheduled deadline.
+          </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-950/40 text-cyan-500 mb-4">
-            <Lightbulb size={18} />
-          </span>
-          <p className="text-xs font-semibold tracking-wide text-slate-400 mb-1">COP MODEL RISK</p>
-          <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{avgCop}%</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Average cost-overrun probability</p>
+        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">
+          <div>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 dark:bg-cyan-950/40 text-cyan-500 mb-4">
+              <Lightbulb size={18} />
+            </span>
+            <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400 mb-1">COP RISK</p>
+            <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{avgCop}%</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Average cost-overrun probability</p>
+          </div>
+          <p className="mt-4 pt-3 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5 leading-snug">
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">COP:</strong> Predicts the probability of total project costs exceeding the sanctioned budget.
+          </p>
         </div>
       </div>
 
@@ -341,42 +356,62 @@ export default function Intelligence() {
 
             {/* Model Outputs Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
-                <span className="text-[10px] uppercase font-semibold text-slate-400 block">COP Risk (Model)</span>
-                <p className="font-display text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                  {selectedProject.costOverrunRisk}%
-                </p>
-                <div className="h-1 rounded-full bg-slate-200 dark:bg-ink-800 mt-2">
-                  <div className="h-full rounded-full bg-amber-500" style={{ width: `${selectedProject.costOverrunRisk}%` }} />
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-amber-600 dark:text-amber-400 block">COP Risk</span>
+                  <p className="font-display text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                    {selectedProject.costOverrunRisk}%
+                  </p>
+                  <div className="h-1 rounded-full bg-slate-200 dark:bg-ink-800 mt-2">
+                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${selectedProject.costOverrunRisk}%` }} />
+                  </div>
                 </div>
+                <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                  <strong className="font-semibold text-slate-700 dark:text-slate-300">COP:</strong> Predicts probability of cost overrun beyond budget.
+                </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
-                <span className="text-[10px] uppercase font-semibold text-slate-400 block">TOP Risk (Model)</span>
-                <p className="font-display text-xl font-bold text-rose-600 dark:text-rose-400 mt-1">
-                  {selectedProject.timeOverrunRisk}%
-                </p>
-                <div className="h-1 rounded-full bg-slate-200 dark:bg-ink-800 mt-2">
-                  <div className="h-full rounded-full bg-rose-500" style={{ width: `${selectedProject.timeOverrunRisk}%` }} />
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-rose-600 dark:text-rose-400 block">TOP Risk</span>
+                  <p className="font-display text-xl font-bold text-rose-600 dark:text-rose-400 mt-1">
+                    {selectedProject.timeOverrunRisk}%
+                  </p>
+                  <div className="h-1 rounded-full bg-slate-200 dark:bg-ink-800 mt-2">
+                    <div className="h-full rounded-full bg-rose-500" style={{ width: `${selectedProject.timeOverrunRisk}%` }} />
+                  </div>
                 </div>
+                <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                  <strong className="font-semibold text-slate-700 dark:text-slate-300">TOP:</strong> Predicts probability of schedule delay beyond target date.
+                </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
-                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Project Health Score</span>
-                <p className="font-display text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  {selectedProject.health} <span className="text-xs text-slate-400">/ 100</span>
-                </p>
-                <div className="h-1 rounded-full bg-slate-200 dark:bg-ink-800 mt-2">
-                  <div className="h-full rounded-full bg-cyan-500" style={{ width: `${selectedProject.health}%` }} />
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Project Health Score</span>
+                  <p className="font-display text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {selectedProject.health} <span className="text-xs text-slate-400">/ 100</span>
+                  </p>
+                  <div className="h-1 rounded-full bg-slate-200 dark:bg-ink-800 mt-2">
+                    <div className="h-full rounded-full bg-cyan-500" style={{ width: `${selectedProject.health}%` }} />
+                  </div>
                 </div>
+                <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                  Overall composite index of health and delivery status.
+                </p>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
-                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Schedule Slip</span>
-                <p className="font-display text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  {selectedProject.timeVariance > 0 ? `+${selectedProject.timeVariance} mo` : '0 mo'}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Schedule Slip</span>
+                  <p className="font-display text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {selectedProject.timeVariance > 0 ? `+${selectedProject.timeVariance} mo` : '0 mo'}
+                  </p>
+                  <span className="text-[10px] text-slate-400 mt-1 block">Cost Var: {selectedProject.costVariance}%</span>
+                </div>
+                <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                  Current physical milestone timeline variance.
                 </p>
-                <span className="text-[10px] text-slate-400 mt-1 block">Cost Var: {selectedProject.costVariance}%</span>
               </div>
             </div>
 

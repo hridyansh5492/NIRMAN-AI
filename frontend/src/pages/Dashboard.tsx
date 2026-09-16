@@ -679,17 +679,27 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-5 pt-4 border-t border-slate-100 dark:border-ink-800 grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
-              <span className="text-slate-400 text-[10px] block">AVG COP OVERRUN RISK</span>
-              <span className="font-bold text-amber-600 dark:text-amber-400 font-mono text-sm">
-                {portfolioSummary?.avg_cop_prob ?? 35.1}%
-              </span>
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800 flex flex-col justify-between">
+              <div>
+                <span className="text-slate-400 text-[10px] block font-semibold uppercase">COP RISK</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400 font-mono text-sm">
+                  {portfolioSummary?.avg_cop_prob ?? 35.1}%
+                </span>
+              </div>
+              <p className="mt-2 pt-1.5 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                <strong className="font-semibold text-slate-700 dark:text-slate-300">COP:</strong> Predicts probability of budget cost overrun.
+              </p>
             </div>
-            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
-              <span className="text-slate-400 text-[10px] block">AVG TOP DELAY RISK</span>
-              <span className="font-bold text-rose-600 dark:text-rose-400 font-mono text-sm">
-                {portfolioSummary?.avg_top_prob ?? 60.5}%
-              </span>
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800 flex flex-col justify-between">
+              <div>
+                <span className="text-slate-400 text-[10px] block font-semibold uppercase">TOP RISK</span>
+                <span className="font-bold text-rose-600 dark:text-rose-400 font-mono text-sm">
+                  {portfolioSummary?.avg_top_prob ?? 60.5}%
+                </span>
+              </div>
+              <p className="mt-2 pt-1.5 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                <strong className="font-semibold text-slate-700 dark:text-slate-300">TOP:</strong> Predicts probability of completion schedule delay.
+              </p>
             </div>
           </div>
         </div>
@@ -727,57 +737,72 @@ export default function Dashboard() {
 
             {/* Dynamic Model Metrics */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
-                <p className="text-[11px] font-medium text-slate-400 mb-2">COST OVERRUN RISK</p>
-                <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
-                  {selectedAiProject.costOverrunRisk}%
-                </p>
-                <p className={`text-xs mt-1 ${selectedAiProject.costOverrunRisk > 50 ? 'text-rose-500' : selectedAiProject.costOverrunRisk > 25 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                  {selectedAiProject.costOverrunRisk > 50 ? 'High risk' : selectedAiProject.costOverrunRisk > 25 ? 'Moderate risk' : 'Low risk'}
-                </p>
-                <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
-                  <div
-                    className="h-full rounded-full bg-amber-400"
-                    style={{ width: `${Math.min(100, selectedAiProject.costOverrunRisk)}%` }}
-                  />
+              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4 flex flex-col justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 mb-2">COP RISK</p>
+                  <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
+                    {selectedAiProject.costOverrunRisk}%
+                  </p>
+                  <p className={`text-xs mt-1 ${selectedAiProject.costOverrunRisk > 50 ? 'text-rose-500' : selectedAiProject.costOverrunRisk > 25 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                    {selectedAiProject.costOverrunRisk > 50 ? 'High risk' : selectedAiProject.costOverrunRisk > 25 ? 'Moderate risk' : 'Low risk'}
+                  </p>
+                  <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
+                    <div
+                      className="h-full rounded-full bg-amber-400"
+                      style={{ width: `${Math.min(100, selectedAiProject.costOverrunRisk)}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">Exposure: {selectedAiProject.expenditure}</p>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2">Exposure: {selectedAiProject.expenditure}</p>
-              </div>
-
-              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
-                <p className="text-[11px] font-medium text-slate-400 mb-2">TIME OVERRUN RISK</p>
-                <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
-                  {selectedAiProject.timeOverrunRisk}%
-                </p>
-                <p className={`text-xs mt-1 ${selectedAiProject.timeOverrunRisk > 50 ? 'text-rose-500' : selectedAiProject.timeOverrunRisk > 25 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                  {selectedAiProject.timeOverrunRisk > 50 ? 'High risk' : selectedAiProject.timeOverrunRisk > 25 ? 'Moderate risk' : 'Low risk'}
-                </p>
-                <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
-                  <div
-                    className="h-full rounded-full bg-red-400"
-                    style={{ width: `${Math.min(100, selectedAiProject.timeOverrunRisk)}%` }}
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">
-                  {selectedAiProject.timeVariance > 0 ? `+${selectedAiProject.timeVariance} mo expected slip` : 'On schedule'}
+                <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                  <strong className="font-semibold text-slate-700 dark:text-slate-300">COP:</strong> Predicts probability of total expenditure exceeding sanctioned budget.
                 </p>
               </div>
 
-              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4">
-                <p className="text-[11px] font-medium text-slate-400 mb-2">PROJECT HEALTH</p>
-                <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
-                  {selectedAiProject.health} / 100
-                </p>
-                <p className={`text-xs mt-1 ${selectedAiProject.health < 60 ? 'text-rose-500' : selectedAiProject.health < 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                  {selectedAiProject.status}
-                </p>
-                <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
-                  <div
-                    className="h-full rounded-full bg-cyan-400"
-                    style={{ width: `${Math.min(100, selectedAiProject.health)}%` }}
-                  />
+              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4 flex flex-col justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-rose-500 dark:text-rose-400 mb-2">TOP RISK</p>
+                  <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
+                    {selectedAiProject.timeOverrunRisk}%
+                  </p>
+                  <p className={`text-xs mt-1 ${selectedAiProject.timeOverrunRisk > 50 ? 'text-rose-500' : selectedAiProject.timeOverrunRisk > 25 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                    {selectedAiProject.timeOverrunRisk > 50 ? 'High risk' : selectedAiProject.timeOverrunRisk > 25 ? 'Moderate risk' : 'Low risk'}
+                  </p>
+                  <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
+                    <div
+                      className="h-full rounded-full bg-red-400"
+                      style={{ width: `${Math.min(100, selectedAiProject.timeOverrunRisk)}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">
+                    {selectedAiProject.timeVariance > 0 ? `+${selectedAiProject.timeVariance} mo expected slip` : 'On schedule'}
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2">94.2% ML confidence</p>
+                <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                  <strong className="font-semibold text-slate-700 dark:text-slate-300">TOP:</strong> Predicts probability of completion schedule delay beyond target date.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-slate-100 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/40 p-4 flex flex-col justify-between">
+                <div>
+                  <p className="text-[11px] font-medium text-slate-400 mb-2">PROJECT HEALTH</p>
+                  <p className="font-display text-2xl font-semibold text-ink-950 dark:text-white">
+                    {selectedAiProject.health} / 100
+                  </p>
+                  <p className={`text-xs mt-1 ${selectedAiProject.health < 60 ? 'text-rose-500' : selectedAiProject.health < 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {selectedAiProject.status}
+                  </p>
+                  <div className="h-1 rounded-full bg-slate-100 dark:bg-ink-800 mt-3">
+                    <div
+                      className="h-full rounded-full bg-cyan-400"
+                      style={{ width: `${Math.min(100, selectedAiProject.health)}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">94.2% ML confidence</p>
+                </div>
+                <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-ink-800 leading-snug">
+                  Overall health combining physical velocity, contractor cadence & cost burn.
+                </p>
               </div>
             </div>
 

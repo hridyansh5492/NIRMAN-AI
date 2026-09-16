@@ -192,60 +192,80 @@ export default function ProjectDetail() {
 
       {/* Top Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card">
-          <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 mb-2">Physical execution</p>
-          <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">
-            {project.physicalProgress}%
+        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card flex flex-col justify-between">
+          <div>
+            <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 mb-2">Physical execution</p>
+            <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">
+              {project.physicalProgress}%
+            </p>
+            <span className="text-[11px] text-slate-400 float-right -mt-6">ground truth</span>
+            <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
+              <div className="h-full rounded-full bg-cyan-500" style={{ width: `${project.physicalProgress}%` }} />
+            </div>
+          </div>
+          <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5 leading-snug">
+            Actual on-site construction work physically completed.
           </p>
-          <span className="text-[11px] text-slate-400 float-right -mt-6">ground truth</span>
-          <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
-            <div className="h-full rounded-full bg-cyan-500" style={{ width: `${project.physicalProgress}%` }} />
-          </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card">
-          <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-2">Financial disbursement</p>
-          <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">
-            {project.financialProgress}%
+        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card flex flex-col justify-between">
+          <div>
+            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-2">Financial disbursement</p>
+            <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">
+              {project.financialProgress}%
+            </p>
+            <span className="text-[11px] text-slate-400 float-right -mt-6">audited</span>
+            <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${project.financialProgress}%` }} />
+            </div>
+          </div>
+          <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5 leading-snug">
+            Cumulative financial capital outlay disbursed to date.
           </p>
-          <span className="text-[11px] text-slate-400 float-right -mt-6">audited</span>
-          <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
-            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${project.financialProgress}%` }} />
-          </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">XGBoost COP Risk</p>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 font-mono">
-              P(Cost Overrun)
-            </span>
+        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">COP Risk</p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 font-mono">
+                P(Cost Overrun)
+              </span>
+            </div>
+            <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{copPct}%</p>
+            <span className="text-[11px] text-slate-400 float-right -mt-6">ML model</span>
+            <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
+              <div
+                className={`h-full rounded-full ${copPct > 50 ? 'bg-red-500' : copPct > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                style={{ width: `${copPct}%` }}
+              />
+            </div>
           </div>
-          <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{copPct}%</p>
-          <span className="text-[11px] text-slate-400 float-right -mt-6">ML model</span>
-          <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${copPct > 50 ? 'bg-red-500' : copPct > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-              style={{ width: `${copPct}%` }}
-            />
-          </div>
+          <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5 leading-snug">
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">COP:</strong> Predicts the probability of total project costs exceeding the sanctioned budget.
+          </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-red-500 dark:text-red-400">XGBoost TOP Risk</p>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-950/40 text-red-500 font-mono">
-              P(Time Slip)
-            </span>
+        <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-5 shadow-card flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-red-500 dark:text-red-400">TOP Risk</p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-950/40 text-red-500 font-mono">
+                P(Time Slip)
+              </span>
+            </div>
+            <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{topPct}%</p>
+            <span className="text-[11px] text-slate-400 float-right -mt-6">ML model</span>
+            <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
+              <div
+                className={`h-full rounded-full ${topPct > 50 ? 'bg-red-500' : topPct > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                style={{ width: `${topPct}%` }}
+              />
+            </div>
           </div>
-          <p className="font-display text-3xl font-bold text-ink-950 dark:text-white font-tabular">{topPct}%</p>
-          <span className="text-[11px] text-slate-400 float-right -mt-6">ML model</span>
-          <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${topPct > 50 ? 'bg-red-500' : topPct > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-              style={{ width: `${topPct}%` }}
-            />
-          </div>
+          <p className="mt-3 pt-2 text-[10px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5 leading-snug">
+            <strong className="font-semibold text-slate-700 dark:text-slate-300">TOP:</strong> Predicts the probability of project completion delays past the scheduled deadline.
+          </p>
         </div>
       </div>
 
@@ -389,44 +409,56 @@ export default function ProjectDetail() {
         <div className="space-y-6">
           {/* Top Engine Breakdown */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card">
-              <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 mb-3">
-                <Cpu size={20} />
-                <h4 className="font-semibold text-sm">XGBoost COP Model</h4>
+            <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 mb-3">
+                  <Cpu size={20} />
+                  <h4 className="font-semibold text-sm">COP Risk Model</h4>
+                </div>
+                <p className="text-3xl font-bold font-display text-ink-950 dark:text-white font-tabular">{copPct}%</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Cost Overrun Probability</p>
+                <div className="mt-3 text-xs text-slate-400">
+                  Trained on national baselines with reporting noise robustness (ROC-AUC ~0.94).
+                </div>
               </div>
-              <p className="text-3xl font-bold font-display text-ink-950 dark:text-white font-tabular">{copPct}%</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Cost Overrun Probability</p>
-              <div className="mt-4 text-xs text-slate-400">
-                Trained on real national baselines with reporting noise robustness (ROC-AUC ~0.94).
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card">
-              <div className="flex items-center gap-2 text-amber-500 mb-3">
-                <Clock size={20} />
-                <h4 className="font-semibold text-sm">XGBoost TOP Model</h4>
-              </div>
-              <p className="text-3xl font-bold font-display text-ink-950 dark:text-white font-tabular">{topPct}%</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Time Overrun Probability</p>
-              <div className="mt-4 text-xs text-slate-400">
-                Predicts completion date slip based on physical pace vs scheduled duration.
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">What COP tells:</span> Indicates the probability that cumulative expenditure will exceed the sanctioned estimate based on expenditure velocity and sector cost trends.
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card">
-              <div className="flex items-center gap-2 text-emerald-500 mb-3">
-                <ShieldCheck size={20} />
-                <h4 className="font-semibold text-sm">Hybrid Risk Score</h4>
+            <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-amber-500 mb-3">
+                  <Clock size={20} />
+                  <h4 className="font-semibold text-sm">TOP Risk Model</h4>
+                </div>
+                <p className="text-3xl font-bold font-display text-ink-950 dark:text-white font-tabular">{topPct}%</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Time Overrun Probability</p>
+                <div className="mt-3 text-xs text-slate-400">
+                  Predicts completion date slip based on physical pace vs scheduled duration.
+                </div>
               </div>
-              <p className="text-3xl font-bold font-display text-ink-950 dark:text-white font-tabular">
-                {project.final_risk_score ?? Math.round(100 - project.health)}
-                <span className="text-sm text-slate-400">/100</span>
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Tier: <span className="font-semibold text-amber-500">{project.risk_level}</span>
-              </p>
-              <div className="mt-4 text-xs text-slate-400">
-                Composite calculation: 50% XGBoost ML Models + 50% MoSPI Domain Rule Engine.
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">What TOP tells:</span> Indicates the probability of completion schedule delay beyond the target date based on physical milestone pace and contractor slippage.
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-emerald-500 mb-3">
+                  <ShieldCheck size={20} />
+                  <h4 className="font-semibold text-sm">Hybrid Risk Score</h4>
+                </div>
+                <p className="text-3xl font-bold font-display text-ink-950 dark:text-white font-tabular">
+                  {project.final_risk_score ?? Math.round(100 - project.health)}
+                  <span className="text-sm text-slate-400">/100</span>
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Tier: <span className="font-semibold text-amber-500">{project.risk_level}</span>
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 text-xs text-slate-400">
+                Composite calculation: 50% ML Risk Models (COP + TOP) + 50% MoSPI Domain Rule Engine.
               </div>
             </div>
           </div>

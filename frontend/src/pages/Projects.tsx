@@ -413,7 +413,7 @@ export default function Projects() {
               </div>
 
               <div className="p-3.5 rounded-lg bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800 text-xs text-cyan-800 dark:text-cyan-300">
-                Submitting will trigger live XGBoost COP & TOP models via <code className="font-mono">/api/predict</code> to calculate instant overrun probabilities and SHAP driver attributions.
+                Submitting will trigger live COP & TOP risk models via <code className="font-mono">/api/predict</code> to calculate instant overrun probabilities and SHAP driver attributions.
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-white/10">
