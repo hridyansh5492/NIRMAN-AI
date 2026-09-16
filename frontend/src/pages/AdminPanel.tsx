@@ -454,18 +454,18 @@ export default function AdminPanel() {
 
                       {/* Progress Metrics & Sanctioned Package Value */}
                       <div className="pt-2 grid grid-cols-3 gap-1.5 text-xs">
-                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-850">
-                          <p className="text-[10px] text-slate-400">Sanctioned Cost</p>
+                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Sanctioned Cost</p>
                           <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
                             ₹{p.sanctioned_cost ?? p.cost_cr ?? 0} Cr
                           </p>
                         </div>
-                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-850">
-                          <p className="text-[10px] text-slate-400">Physical Progress</p>
+                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Physical Progress</p>
                           <p className="text-xs font-bold text-brand-orange">{p.physicalProgress}%</p>
                         </div>
-                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-850">
-                          <p className="text-[10px] text-slate-400">Health Score</p>
+                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Health Score</p>
                           <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{p.health}/100</p>
                         </div>
                       </div>
