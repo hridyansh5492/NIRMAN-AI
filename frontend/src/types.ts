@@ -3,7 +3,7 @@ export type ProjectStatus = 'Completed' | 'On Track' | 'Watch' | 'At Risk'
 export type Sector = 'Railways' | 'Roads & Highways' | 'Urban Transport' | 'Power & RE' | string
 
 export interface DeliveryStage {
-  label: 'Sanctioned' | 'Planning' | 'Construction' | 'Current' | 'Expected'
+  label: 'Sanctioned' | 'Planning' | 'Construction' | 'Progress' | 'Finished'
   reached: boolean
 }
 
@@ -48,6 +48,14 @@ export interface Project {
   contractor_id?: string
   contractor_name?: string
   location?: string
+  approved_progress_pct?: number
+  latest_approved_report?: {
+    submission_id: string
+    physical_progress_pct: number
+    submitted_at?: string
+    notes?: string
+    verification_status?: string
+  }
 }
 
 /** A project as returned by the backend's geospatial feed (`/api/projects?map=true`). */

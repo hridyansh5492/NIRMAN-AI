@@ -27,6 +27,7 @@ import {
 } from '../services/api'
 import type { PortfolioSummary, EarlyWarning, Project } from '../types'
 import RadialGauge from '../components/RadialGauge'
+import DeliverySignal from '../components/DeliverySignal'
 
 export default function Intelligence() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
@@ -353,6 +354,9 @@ export default function Intelligence() {
                 </Link>
               </div>
             </div>
+
+            {/* Delivery Signal Stepper & Progress Line */}
+            <DeliverySignal project={selectedProject} showBaselines={false} />
 
             {/* Model Outputs Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

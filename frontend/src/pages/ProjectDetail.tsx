@@ -31,10 +31,11 @@ import {
 import type { ProjectDetailData, ProjectTimelineSnapshot } from '../types'
 import { getProjectDetail, getProjectTimeline, getAINarrative, type AINarrative } from '../services/api'
 import StatusPill from '../components/StatusPill'
+import DeliverySignal from '../components/DeliverySignal'
 
 const tabs = ['Overview', 'Risk Intelligence', 'Timeline', 'Financials', 'Progress']
 
-const stageLabels = ['Sanctioned', 'Planning', 'Construction', 'Current', 'Expected']
+const stageLabels = ['Sanctioned', 'Planning', 'Construction', 'Progress', 'Finished']
 
 const flagDot: Record<string, string> = {
   positive: 'bg-emerald-500',
@@ -289,90 +290,7 @@ export default function ProjectDetail() {
       {/* TAB 1: OVERVIEW */}
       {tab === 'Overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-[1.3fr,1fr] gap-6">
-          <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400 mb-1">
-                  PROJECT OVERVIEW
-                </p>
-                <h3 className="font-display font-semibold text-lg text-ink-950 dark:text-white">Delivery Signal</h3>
-              </div>
-              <span className="text-xs text-slate-400 flex items-center gap-1">
-                <Clock size={13} /> Active snapshot: July 2026
-              </span>
-            </div>
-
-            {/* Stepper */}
-            <div className="relative pt-2">
-              <div className="flex justify-between">
-                {stageLabels.map((label, i) => {
-                  const reached = i <= project.currentStageIndex
-                  const isCurrent = i === project.currentStageIndex
-                  return (
-                    <div key={label} className="flex flex-col items-center gap-2 relative z-10">
-                      <span
-                        className={`h-8 w-8 rounded-full border-2 flex items-center justify-center ${
-                          isCurrent
-                            ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-500'
-                            : reached
-                            ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500'
-                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-ink-900 text-slate-400'
-                        }`}
-                      >
-                        {reached ? <CheckCircle2 size={16} /> : <span className="text-xs">{i + 1}</span>}
-                      </span>
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</span>
-                    </div>
-                  )
-                })}
-              </div>
-              <div
-                className="absolute top-4 left-6 right-6 h-1 bg-slate-100 dark:bg-slate-800 rounded-full -z-0"
-                style={{ top: '20px' }}
-              >
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-amber-400"
-                  style={{ width: `${(project.currentStageIndex / (stageLabels.length - 1)) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Milestones & Budgets */}
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-100 dark:border-white/5">
-              <div>
-                <p className="text-xs font-medium text-slate-400 mb-1">ORIGINAL TARGET</p>
-                <p className="text-sm font-semibold text-ink-950 dark:text-white">{project.originalCompletion}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-400 mb-1">
-                  {project.status === 'Completed' ? 'DATE OF COMPLETION' : 'PREDICTED COMPLETION'}
-                </p>
-                <p className={`text-sm font-semibold flex items-center gap-1 ${project.status === 'Completed' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'}`}>
-                  <Calendar size={14} /> {project.status === 'Completed' ? (project.completionDate || project.dateOfCompletion || project.predictedCompletion) : project.predictedCompletion}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-400 mb-1">EXPENDITURE TO DATE</p>
-                <p className="text-sm font-semibold text-ink-950 dark:text-white">{project.expenditure}</p>
-              </div>
-            </div>
-
-            {/* Baseline comparison */}
-            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-slate-50 dark:bg-ink-950/60 border border-slate-200 dark:border-white/5 text-xs">
-              <div>
-                <span className="text-slate-400">Sector Baseline Overrun:</span>
-                <p className="font-semibold text-ink-950 dark:text-white text-sm mt-0.5">
-                  +{project.sector_risk_baseline ?? 8.5}% avg
-                </p>
-              </div>
-              <div>
-                <span className="text-slate-400">State Baseline Overrun:</span>
-                <p className="font-semibold text-ink-950 dark:text-white text-sm mt-0.5">
-                  +{project.state_risk_baseline ?? 5.2}% avg
-                </p>
-              </div>
-            </div>
-          </div>
+          <DeliverySignal project={project} />
 
           {/* Intervention Brief */}
           <div className="rounded-xl border border-slate-200 dark:border-white/5 bg-white dark:bg-ink-900 p-6 shadow-card flex flex-col justify-between">

@@ -224,7 +224,8 @@ def format_project_card(row):
         "expenditure": f"₹ {round(exp, 1):,} Cr" if exp > 0 else f"₹ {round(sanctioned, 1):,} Cr",
         "costVariance": round(overrun, 1),
         "timeVariance": round(slip, 1),
-        "currentStageIndex": min(4, max(0, int(phys // 25))),
+        "currentStageIndex": 4 if phys >= 100.0 else 3 if phys > 0 else 0,
+        "approved_progress_pct": round(phys, 1),
         "reviewReason": (
             f"The predictive ML model estimates a {round(cop_p*100, 1)}% probability of cost overrun and "
             f"{round(top_p*100, 1)}% probability of schedule overrun. "
@@ -422,7 +423,25 @@ def project_detail(project_id: str):
     result["expenditure"] = f"₹ {round(result.get('cumulative_expenditure', 0), 1):,} Cr"
     result["originalCompletion"] = str(result.get("original_end_date") or "31 Dec 2028")
     result["predictedCompletion"] = comp_date_str if (result["status"] == "Completed" and comp_date_str) else str(result.get("revised_end_date") or "30 Jun 2030")
-    result["currentStageIndex"] = min(4, max(0, int(result["physical_progress_pct"] // 25)))
+    result["currentStageIndex"] = 4 if result["physical_progress_pct"] >= 100.0 else 3 if result["physical_progress_pct"] > 0 else 0
+    result["approved_progress_pct"] = round(result["physical_progress_pct"], 1)
+
+    try:
+        c_reports = q(
+            "SELECT submission_id, physical_progress_pct, submitted_at, notes, verification_status "
+            "FROM contractor_progress_reports "
+            "WHERE project_id = ? AND counts_towards_progress = 1 "
+            "ORDER BY id DESC LIMIT 1",
+            params=[project_id]
+        )
+        if not c_reports.empty:
+            rep = c_reports.iloc[0].to_dict()
+            result["latest_approved_report"] = rep
+            result["approved_progress_pct"] = float(rep.get("physical_progress_pct", result["physicalProgress"]))
+        else:
+            result["latest_approved_report"] = None
+    except Exception:
+        result["latest_approved_report"] = None
 
     top_drivers = result.get("shap_drivers", [])
     driver_texts = []
@@ -1276,6 +1295,7 @@ def recompute_project_intelligence(
                 "VALUES (?, ?, ?, ?, '2024-01-01', '2027-01-01', 36)",
                 (project_id, sector, state, sanctioned_cost)
             )
+            conn.commit()
             p_row = q("SELECT * FROM projects WHERE project_id = ?", params=[project_id])
 
         p_info = p_row.iloc[0].to_dict()
