@@ -69,7 +69,7 @@ export default function ProjectMapSafe({ projects, ...rest }: ProjectMapSafeProp
 
   return (
     <MapErrorBoundary fallback={fallback}>
-      {isEmpty ? fallback : <ProjectMap projects={projects} {...rest} dark={false} />}
+      {isEmpty ? fallback : <ProjectMap projects={projects} {...rest} />}
     </MapErrorBoundary>
   )
 }

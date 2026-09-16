@@ -29,6 +29,16 @@ export default function MapView() {
   const [sector, setSector] = useState('All')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [query, setQuery] = useState('')
+  const [dark, setDark] = useState(false)
+
+  // Follow the document theme so the basemap stays legible (light ↔ CARTO dark).
+  useEffect(() => {
+    const applyTheme = () => setDark(document.documentElement.classList.contains('dark'))
+    applyTheme()
+    const observer = new MutationObserver(applyTheme)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -182,7 +192,7 @@ export default function MapView() {
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr),340px] gap-6 items-start">
         <div className="rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-3 shadow-card transition-colors duration-200">
           <div className="relative z-0">
-            <ProjectMapSafe projects={filtered} height={560} dark={false} />
+            <ProjectMapSafe projects={filtered} height={560} dark={dark} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-3 text-[11px] text-slate-500">
             <span className="flex items-center gap-4">
