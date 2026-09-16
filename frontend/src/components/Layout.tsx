@@ -178,13 +178,13 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f8fa] dark:bg-ink-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 overflow-x-hidden">
+    <div className="min-h-screen bg-white dark:bg-ink-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 overflow-x-hidden">
       
       {/* Floating Header Spacer */}
       <div className="mx-auto max-w-[1440px] px-4 sm:px-6 pt-4 sticky top-0 z-40">
         
         {/* Navigation Header Panel */}
-        <header className="rounded-2xl sm:rounded-full shadow-[0_4px_20px_rgba(15,20,32,0.06)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-white/50 dark:border-ink-800 bg-gradient-to-r from-amber-500/10 via-white/95 to-emerald-500/10 dark:from-amber-600/10 dark:via-ink-900/95 dark:to-emerald-600/10 backdrop-blur px-4 sm:px-8 h-16 flex items-center justify-between transition-all duration-300">
+        <header className="rounded-2xl sm:rounded-full shadow-[0_4px_20px_rgba(15,20,32,0.06)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-slate-200/80 dark:border-ink-800 bg-gradient-to-r from-amber-500/10 via-white/95 to-emerald-500/10 dark:from-amber-600/10 dark:via-ink-900/95 dark:to-emerald-600/10 backdrop-blur px-4 sm:px-8 h-16 flex items-center justify-between transition-all duration-300">
           
           <div className="flex items-center gap-3 md:gap-6 min-w-0">
             {/* Logo Wrapper Container */}

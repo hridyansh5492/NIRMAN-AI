@@ -41,11 +41,11 @@ function ContractorRestrictedRoute({ children }: { children: React.ReactNode }) 
 }
 
 export default function App() {
-  // 1. Default loading mode is light mode unless user explicitly chose dark mode
+  // 1. Explicitly make light theme the default (false) unless user specifically chose dark mode
   const [darkMode, setDarkMode] = useState(() => {
-    const savedTheme = localStorage.getItem('theme_preference')
-    if (savedTheme) {
-      return savedTheme === 'dark'
+    const savedTheme = localStorage.getItem('theme_preference') ?? localStorage.getItem('theme')
+    if (savedTheme === 'dark') {
+      return true
     }
     // Default to light mode (false)
     return false

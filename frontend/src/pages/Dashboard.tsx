@@ -277,6 +277,21 @@ export default function Dashboard() {
   const [selectedSummaryIndex, setSelectedSummaryIndex] = useState(0)
   const [mapProjects, setMapProjects] = useState<MapProject[]>([])
 
+  const [darkTheme, setDarkTheme] = useState(() =>
+    typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false,
+  )
+
+  useEffect(() => {
+    const applyTheme = () => setDarkTheme(document.documentElement.classList.contains('dark'))
+    applyTheme()
+    const observer = new MutationObserver(applyTheme)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+    return () => observer.disconnect()
+  }, [])
+
   // AI Project Intelligence (AI PI) state
   const [selectedAiProjectIndex, setSelectedAiProjectIndex] = useState(0)
   const [aiProjectNarrative, setAiProjectNarrative] = useState<AINarrative | null>(null)
@@ -828,7 +843,7 @@ export default function Dashboard() {
           <ProjectMapSafe
             projects={mapProjects}
             height={380}
-            dark={document.documentElement.classList.contains('dark')}
+            dark={darkTheme}
           />
           <div className="flex items-center justify-between mt-3 text-[11px] text-slate-500">
             <span className="flex items-center gap-3">
