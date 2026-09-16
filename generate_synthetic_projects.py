@@ -75,9 +75,12 @@ def sample_final_physical_progress(rng, bucket_dist):
     b = rng.choice(len(buckets), p=probs)
     label = buckets[b]
     if label == "100":
-        return 100.0
+        return 100.0, True
     lo, hi = (float(x) for x in label.split("-"))
-    return rng.uniform(lo, hi)
+    if label == "90-100" and rng.random() < 0.15:
+        return 100.0, True
+    val = rng.uniform(lo, min(hi, 99.0) if hi == 100.0 else hi)
+    return val, False
 
 
 def main():
@@ -138,6 +141,7 @@ def main():
     rng.shuffle(state_assign)
 
     projects = []
+    snapshots = []
     for idx in range(n_projects):
         sec = sector_assign[idx]
         sta = state_assign[idx]
@@ -154,23 +158,41 @@ def main():
         # per-project drift sampled around the state's REAL net monthly drift
         drift = rng.normal(net_drift, DRIFT_SIGMA)
 
-        # Single project cost sampled around real per-project average for the sector (not aggregate sector sum)
+        # Single project cost sampled around real per-project average for the sector
         avg_proj_cost = float(sector.loc[sec, "original_cost"]) / max(1.0, float(sector.loc[sec, "project_count"]))
         sanctioned = float(np.clip(
             rng.lognormal(np.log(max(avg_proj_cost, 15.0)), 0.60),
             15.0, 35000.0))
 
-        duration_months = int(rng.integers(24, 121))
-        sanctioned_date = pd.Timestamp(YEAR, 2, int(rng.integers(1, 29)))
-        original_end = sanctioned_date + pd.DateOffset(months=duration_months)
+        final_phys, is_completed = sample_final_physical_progress(rng, bucket_dist)
+        pid = f"PRJ-{idx+1:04d}"
+
+        if is_completed:
+            comp_month = rng.choice(MONTHS, p=[0.10, 0.12, 0.15, 0.18, 0.20, 0.25])
+            comp_day = int(rng.integers(1, 28))
+            comp_date = pd.Timestamp(YEAR, MONTH_NUM[comp_month], comp_day)
+            comp_date_str = comp_date.strftime("%Y-%m-%d")
+            duration_months = int(rng.integers(18, 60))
+            slip_days = int(rng.integers(-10, 45))
+            original_end = comp_date - pd.Timedelta(days=slip_days)
+            sanctioned_date = original_end - pd.DateOffset(months=duration_months)
+        else:
+            comp_month = None
+            comp_date = None
+            comp_date_str = None
+            duration_months = int(rng.integers(24, 121))
+            sanctioned_date = pd.Timestamp(YEAR, 2, int(rng.integers(1, 29)))
+            original_end = sanctioned_date + pd.DateOffset(months=duration_months)
 
         projects.append({
-            "project_id": f"PRJ-{idx+1:04d}",
+            "project_id": pid,
             "sector": sec,
             "state": sta,
             "sanctioned_cost": round(sanctioned, 2),
-            "sanctioned_date": sanctioned_date,
-            "original_end_date": original_end,
+            "sanctioned_date": sanctioned_date.strftime("%Y-%m-%d"),
+            "original_end_date": original_end.strftime("%Y-%m-%d"),
+            "completion_date": comp_date_str,
+            "date_of_completion": comp_date_str,
             "duration_months": duration_months,
             "target_cost_overrun_pct": round(float(base_tendency), 3),
             "real_state_overrun_july": round(state_july, 3),
@@ -178,63 +200,68 @@ def main():
             "real_state_drift_pp_month": round(float(net_drift), 3),
         })
 
-    proj_df = pd.DataFrame(projects)
-
-    # --- snapshots: 6 monthly, overrun drifts along the real state curve ---
-    snapshots = []
-    for _, p in proj_df.iterrows():
-        pid, sta, sec = p["project_id"], p["state"], p["sector"]
+        # --- snapshots: 6 monthly, overrun drifts along the real state curve ---
         curve = state_curves[sta]
-        sector_overrun = p["real_sector_overrun_pct"]
-        net_drift = p["real_state_drift_pp_month"]
-        drift = rng.normal(net_drift, DRIFT_SIGMA)
         bias0 = rng.normal(0, 4.0)
-        base = p["target_cost_overrun_pct"]          # July-anchored level
-        sanctioned = p["sanctioned_cost"]
+        base = float(base_tendency)
 
-        final_phys = sample_final_physical_progress(rng, bucket_dist)
         pace = rng.lognormal(mean=np.log(1.25), sigma=0.5)
         phys = {}
-        for i, m in enumerate(MONTHS):
-            t = (i + 1) / len(MONTHS)
-            phys[m] = np.clip(final_phys * t * pace, 0, 100)
-        if final_phys < 10:  # stalled projects stay near 0 all through
-            for m in MONTHS:
-                phys[m] = min(phys[m], rng.uniform(0, 8))
+        if is_completed:
+            comp_idx = MONTHS.index(comp_month)
+            for i, m in enumerate(MONTHS):
+                if i >= comp_idx:
+                    phys[m] = 100.0
+                else:
+                    months_prior = comp_idx - i
+                    phys[m] = float(np.clip(100.0 - months_prior * rng.uniform(4.5, 9.0) + rng.normal(0, 1.0), 65.0, 99.0))
+        else:
+            for i, m in enumerate(MONTHS):
+                t = (i + 1) / len(MONTHS)
+                phys[m] = float(np.clip(final_phys * t * pace, 0, min(final_phys, 99.0)))
+            if final_phys < 10:
+                for m in MONTHS:
+                    phys[m] = float(min(phys[m], rng.uniform(0, 8)))
 
         for i, m in enumerate(MONTHS):
-            # anchored at July's real level; earlier months follow the real
-            # curve's relative shape (W_STATE share) plus the project's own
-            # sampled drift (the residual 1-W_STATE share), so the combined
-            # net movement matches the real state trajectory.
             curve_shift = W_STATE * (curve[m] - curve["July"])
             project_drift = (1 - W_STATE) * drift * (i - (len(MONTHS) - 1))
             overrun = base + curve_shift + project_drift + bias0 + rng.normal(0, 1.5)
             overrun = float(np.clip(overrun, CLIP_LO, CLIP_HI))
 
             pp = phys[m]
-            fp = np.clip(pp + rng.normal(0, 4), 0, 100)
-
-            revised_cost = sanctioned * (1 + overrun / 100.0)
-            cum_exp = sanctioned * (fp / 100.0)
-
-            slip = max(0.0, overrun * 0.35 + (100 - pp) * 0.12 + rng.normal(0, 2))
             snapshot_date = pd.Timestamp(YEAR, MONTH_NUM[m], 15)
-            revised_end = p["original_end_date"] + pd.DateOffset(months=int(round(slip)))
+
+            if is_completed and i >= MONTHS.index(comp_month):
+                fp = 100.0
+                revised_cost = sanctioned * (1 + overrun / 100.0)
+                cum_exp = revised_cost
+                slip = max(0.0, (comp_date - original_end).days / 30.44)
+                revised_end = comp_date
+                snap_comp = comp_date_str
+            else:
+                fp = float(np.clip(pp + rng.normal(0, 4), 0, 99.5))
+                revised_cost = sanctioned * (1 + overrun / 100.0)
+                cum_exp = sanctioned * (fp / 100.0)
+                slip = max(0.0, overrun * 0.35 + (100 - pp) * 0.12 + rng.normal(0, 2))
+                revised_end = original_end + pd.DateOffset(months=int(round(slip)))
+                snap_comp = None
 
             snapshots.append({
                 "project_id": pid,
                 "month": m,
-                "snapshot_date": snapshot_date,
+                "snapshot_date": snapshot_date.strftime("%Y-%m-%d"),
                 "physical_progress_pct": round(pp, 2),
                 "financial_progress_pct": round(fp, 2),
                 "cumulative_expenditure": round(cum_exp, 2),
                 "revised_cost": round(revised_cost, 2),
                 "cost_overrun_to_date_pct": round(overrun, 2),
-                "revised_end_date": revised_end,
+                "revised_end_date": revised_end.strftime("%Y-%m-%d"),
+                "completion_date": snap_comp,
                 "schedule_slip_months": round(slip, 2),
             })
 
+    proj_df = pd.DataFrame(projects)
     snap_df = pd.DataFrame(snapshots)
     snap_df["month"] = pd.Categorical(snap_df["month"], categories=MONTHS, ordered=True)
     snap_df = snap_df.sort_values(["project_id", "month"]).reset_index(drop=True)
@@ -242,8 +269,10 @@ def main():
     # --- validation ---------------------------------------------------------
     final = snap_df[snap_df["month"] == "July"]
     stalled_final = (final["physical_progress_pct"] < 10).mean()
+    completed_final = (final["physical_progress_pct"] >= 100).sum()
     print(f"\nSynthetic stalled share (final, <10%): {stalled_final*100:.2f}% "
           f"(real July: {stall_share*100:.2f}%)")
+    print(f"Synthetic completed projects (100%): {completed_final} of {len(proj_df)} ({completed_final/len(proj_df)*100:.1f}%)")
 
     # Net Feb->July drift fidelity (population-weighted, real states)
     snap_curve = snap_df.pivot_table(

@@ -204,7 +204,7 @@ class ScoreEngine:
         warnings = self._warnings(row["snapshot_id"])
 
         # Fetch additional project and snapshot metadata
-        p_row = pd.read_sql("SELECT sanctioned_cost, sanctioned_date, original_end_date, duration_months FROM projects WHERE project_id=?",
+        p_row = pd.read_sql("SELECT sanctioned_cost, sanctioned_date, original_end_date, completion_date, date_of_completion, duration_months FROM projects WHERE project_id=?",
                             self.conn, params=[project_id])
         s_row = pd.read_sql("SELECT cumulative_expenditure, revised_cost, revised_end_date FROM project_snapshots WHERE project_id=? AND month=?",
                             self.conn, params=[project_id, row["month"]])
@@ -242,6 +242,8 @@ class ScoreEngine:
             "sanctioned_cost": clean_num(p_info.get("sanctioned_cost", 0.0)),
             "sanctioned_date": str(p_info.get("sanctioned_date") or ""),
             "original_end_date": str(p_info.get("original_end_date") or ""),
+            "completion_date": str(p_info.get("completion_date") or p_info.get("date_of_completion") or "") if (p_info.get("completion_date") or p_info.get("date_of_completion")) else None,
+            "date_of_completion": str(p_info.get("date_of_completion") or p_info.get("completion_date") or "") if (p_info.get("date_of_completion") or p_info.get("completion_date")) else None,
             "duration_months": clean_num(p_info.get("duration_months", 0)),
             "cumulative_expenditure": clean_num(s_info.get("cumulative_expenditure", 0.0)),
             "revised_cost": clean_num(s_info.get("revised_cost", 0.0)),

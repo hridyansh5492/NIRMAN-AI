@@ -32,6 +32,8 @@ export interface Project {
   timeOverrunRisk: number
   originalCompletion: string
   predictedCompletion: string
+  completionDate?: string
+  dateOfCompletion?: string
   expenditure: string
   costVariance: number
   timeVariance: number

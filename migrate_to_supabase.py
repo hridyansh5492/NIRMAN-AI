@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS projects (
     sanctioned_cost NUMERIC,
     sanctioned_date TEXT,
     original_end_date TEXT,
+    completion_date TEXT,
+    date_of_completion TEXT,
     duration_months INT,
     target_cost_overrun_pct NUMERIC,
     real_state_overrun_july NUMERIC,
@@ -106,6 +108,7 @@ CREATE TABLE IF NOT EXISTS project_snapshots (
     revised_cost NUMERIC,
     cost_overrun_to_date_pct NUMERIC,
     revised_end_date TEXT,
+    completion_date TEXT,
     schedule_slip_months NUMERIC,
     PRIMARY KEY (project_id, month)
 );
@@ -275,6 +278,10 @@ def init_schema():
             cleaned = stmt.strip()
             if cleaned:
                 conn.execute(text(cleaned))
+        # Ensure new columns exist on already created tables
+        conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS completion_date TEXT"))
+        conn.execute(text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS date_of_completion TEXT"))
+        conn.execute(text("ALTER TABLE project_snapshots ADD COLUMN IF NOT EXISTS completion_date TEXT"))
     print("Schema applied successfully!")
 
 

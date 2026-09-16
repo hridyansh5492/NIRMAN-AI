@@ -189,19 +189,18 @@ def format_project_card(row):
     status = _status_from_risk(risk_lvl, phys)
     health = max(0, min(100, round(100 - final_risk, 1)))
 
+    comp_date = row.get("completion_date") or row.get("date_of_completion")
+    comp_date_str = str(comp_date) if comp_date and pd.notna(comp_date) else None
+
     flags = []
     if phys >= 100:
-        flags.append({"label": "Project completed", "tone": "positive"})
+        flags.append({"label": f"Completed on {comp_date_str}" if comp_date_str else "Project completed", "tone": "positive"})
     elif slip > 4:
         flags.append({"label": f"Schedule slip +{round(slip, 1)} mo", "tone": "negative"})
     if overrun > 10:
         flags.append({"label": f"Cost escalation +{round(overrun, 1)}%", "tone": "negative"})
     elif overrun < 0:
         flags.append({"label": f"Cost savings {round(abs(overrun), 1)}%", "tone": "positive"})
-    if abs(fin - phys) > 10:
-        flags.append({"label": f"Fin/Phys gap {round(abs(fin - phys), 1)}%", "tone": "negative"})
-    if phys >= 70:
-        flags.append({"label": "High physical execution", "tone": "positive"})
     elif phys < 15:
         flags.append({"label": "Early execution phase", "tone": "neutral"})
 
@@ -218,8 +217,10 @@ def format_project_card(row):
         "health": health,
         "costOverrunRisk": round(cop_p * 100, 1),
         "timeOverrunRisk": round(top_p * 100, 1),
+        "completionDate": comp_date_str,
+        "dateOfCompletion": comp_date_str,
         "originalCompletion": str(row.get("original_end_date") or "31 Dec 2028"),
-        "predictedCompletion": str(row.get("revised_end_date") or "30 Jun 2030"),
+        "predictedCompletion": comp_date_str if (status == "Completed" and comp_date_str) else str(row.get("revised_end_date") or "30 Jun 2030"),
         "expenditure": f"₹ {round(exp, 1):,} Cr" if exp > 0 else f"₹ {round(sanctioned, 1):,} Cr",
         "costVariance": round(overrun, 1),
         "timeVariance": round(slip, 1),
@@ -312,7 +313,7 @@ def projects(sector: Optional[str] = None, state: Optional[str] = None,
         return _map_projects(limit=max(1, min(limit, 2000)))
     query = """
     SELECT 
-        p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.duration_months,
+        p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.completion_date, p.date_of_completion, p.duration_months,
         s.physical_progress_pct, s.financial_progress_pct, s.cumulative_expenditure, s.revised_cost,
         s.cost_overrun_to_date_pct, s.schedule_slip_months, s.revised_end_date,
         m.cop_prob, m.top_prob, m.model_risk_score, m.rule_risk_score, m.final_risk_score, m.risk_level
@@ -414,9 +415,13 @@ def project_detail(project_id: str):
     result["timeVariance"] = round(result["schedule_slip_months"], 1)
     result["physicalProgress"] = round(result["physical_progress_pct"], 1)
     result["financialProgress"] = round(result["financial_progress_pct"], 1)
+    comp_date = result.get("completion_date") or result.get("date_of_completion")
+    comp_date_str = str(comp_date) if comp_date and pd.notna(comp_date) else None
+    result["completionDate"] = comp_date_str
+    result["dateOfCompletion"] = comp_date_str
     result["expenditure"] = f"₹ {round(result.get('cumulative_expenditure', 0), 1):,} Cr"
     result["originalCompletion"] = str(result.get("original_end_date") or "31 Dec 2028")
-    result["predictedCompletion"] = str(result.get("revised_end_date") or "30 Jun 2030")
+    result["predictedCompletion"] = comp_date_str if (result["status"] == "Completed" and comp_date_str) else str(result.get("revised_end_date") or "30 Jun 2030")
     result["currentStageIndex"] = min(4, max(0, int(result["physical_progress_pct"] // 25)))
 
     top_drivers = result.get("shap_drivers", [])
@@ -684,7 +689,7 @@ def state_detail(state_name: str):
 
     proj_query = """
     SELECT 
-        p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.duration_months,
+        p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.completion_date, p.date_of_completion, p.duration_months,
         s.physical_progress_pct, s.financial_progress_pct, s.cumulative_expenditure, s.revised_cost,
         s.cost_overrun_to_date_pct, s.schedule_slip_months, s.revised_end_date,
         m.cop_prob, m.top_prob, m.model_risk_score, m.rule_risk_score, m.final_risk_score, m.risk_level
@@ -1153,7 +1158,7 @@ def contractor_projects(contractor_id: str):
     res = []
     for pid in assigned_pids:
         p_row = q("""
-        SELECT p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.duration_months,
+        SELECT p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.completion_date, p.date_of_completion, p.duration_months,
                s.physical_progress_pct, s.financial_progress_pct, s.cumulative_expenditure, s.revised_cost,
                s.cost_overrun_to_date_pct, s.schedule_slip_months, s.revised_end_date,
                m.cop_prob, m.top_prob, m.model_risk_score, m.rule_risk_score, m.final_risk_score, m.risk_level

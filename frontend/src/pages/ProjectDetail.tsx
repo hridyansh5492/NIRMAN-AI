@@ -344,9 +344,11 @@ export default function ProjectDetail() {
                 <p className="text-sm font-semibold text-ink-950 dark:text-white">{project.originalCompletion}</p>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-400 mb-1">PREDICTED COMPLETION</p>
-                <p className="text-sm font-semibold text-ink-950 dark:text-white flex items-center gap-1 text-amber-500">
-                  <Calendar size={14} /> {project.predictedCompletion}
+                <p className="text-xs font-medium text-slate-400 mb-1">
+                  {project.status === 'Completed' ? 'DATE OF COMPLETION' : 'PREDICTED COMPLETION'}
+                </p>
+                <p className={`text-sm font-semibold flex items-center gap-1 ${project.status === 'Completed' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'}`}>
+                  <Calendar size={14} /> {project.status === 'Completed' ? (project.completionDate || project.dateOfCompletion || project.predictedCompletion) : project.predictedCompletion}
                 </p>
               </div>
               <div>

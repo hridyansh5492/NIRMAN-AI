@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS projects (
     sanctioned_cost NUMERIC,
     sanctioned_date TEXT,
     original_end_date TEXT,
+    completion_date TEXT,
+    date_of_completion TEXT,
     duration_months INT,
     target_cost_overrun_pct NUMERIC,
     real_state_overrun_july NUMERIC,
@@ -77,6 +79,7 @@ CREATE TABLE IF NOT EXISTS project_snapshots (
     revised_cost NUMERIC,
     cost_overrun_to_date_pct NUMERIC,
     revised_end_date TEXT,
+    completion_date TEXT,
     schedule_slip_months NUMERIC,
     PRIMARY KEY (project_id, month)
 );
