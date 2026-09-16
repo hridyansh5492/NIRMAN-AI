@@ -7,7 +7,7 @@ import ProjectCard from '../components/ProjectCard'
 import ProjectMapSafe from '../components/ProjectMapSafe'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { projects, sectorPerformance } from '../data/mockData'
-import { getMapProjects, getPortfolioSummary, getAINarrative, getPortfolioAINarrative, type AINarrative, type PortfolioAINarrative } from '../services/api'
+import { getMapProjects, getPortfolioSummary, getAINarrative, getPortfolioAINarrative, getRiskSurfaceNarrative, type AINarrative, type PortfolioAINarrative, type RiskSurfaceNarrative } from '../services/api'
 import type { MapProject, PortfolioSummary, Project } from '../types'
 
 import slide1 from '../assests/slide1.png'
@@ -357,6 +357,45 @@ export default function Dashboard() {
       : 0
     return { total, atRisk, watch, onTrack, avgRisk }
   }, [mapProjects])
+
+  // Risk Surface Index narrative state (OpenRouter backed)
+  const [riskSurfaceNarrative, setRiskSurfaceNarrative] = useState<RiskSurfaceNarrative | null>(null)
+  const [loadingRiskSurfaceNarrative, setLoadingRiskSurfaceNarrative] = useState(false)
+  const hasLoadedSurfaceNarrativeRef = useRef(false)
+
+  const fetchRiskSurfaceNarrative = (refresh = false, stats = mapRiskStats) => {
+    setLoadingRiskSurfaceNarrative(true)
+    getRiskSurfaceNarrative(
+      {
+        total: stats.total,
+        at_risk: stats.atRisk,
+        watch: stats.watch,
+        on_track: stats.onTrack,
+        avg_risk: stats.avgRisk,
+      },
+      refresh
+    )
+      .then((res) => setRiskSurfaceNarrative(res))
+      .catch((err) => console.warn('Failed to load risk surface AI narrative', err))
+      .finally(() => setLoadingRiskSurfaceNarrative(false))
+  }
+
+  useEffect(() => {
+    if (mapRiskStats.total > 0 && !hasLoadedSurfaceNarrativeRef.current) {
+      hasLoadedSurfaceNarrativeRef.current = true
+      fetchRiskSurfaceNarrative(false, mapRiskStats)
+    }
+  }, [mapRiskStats])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!hasLoadedSurfaceNarrativeRef.current) {
+        hasLoadedSurfaceNarrativeRef.current = true
+        fetchRiskSurfaceNarrative(false, mapRiskStats)
+      }
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [])
 
   const summaryList = summaryData[summaryMode]
   const selectedSummary = summaryList[selectedSummaryIndex] ?? summaryList[0]
@@ -904,13 +943,43 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <div className="mt-4 rounded-lg bg-slate-50 dark:bg-ink-950 p-4 flex-1">
-            <p className="text-sm font-semibold text-ink-950 dark:text-white mb-1.5">Why this matters</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              Markers are pinned to deterministic state-centroid coordinates. Risk signals come straight from the
-              same XGBoost composite used in the hotspot list — points are display data aligned to the model,
-              not a geospatial survey.
-            </p>
+          <div className="mt-4 rounded-lg bg-slate-50 dark:bg-ink-950 p-4 flex-1 border border-slate-100 dark:border-ink-800 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-cyan-500 dark:text-cyan-400" />
+                  <p className="text-sm font-semibold text-ink-950 dark:text-white">Why this matters</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {riskSurfaceNarrative?.available && riskSurfaceNarrative.source === 'openrouter' && (
+                    <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/50 dark:border-emerald-800/50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      OpenRouter · {riskSurfaceNarrative.model.split('/').pop() || riskSurfaceNarrative.model}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => fetchRiskSurfaceNarrative(true)}
+                    disabled={loadingRiskSurfaceNarrative}
+                    title="Regenerate risk surface intelligence via OpenRouter"
+                    className="p-1 rounded-md border border-slate-200 dark:border-ink-700 hover:bg-slate-100 dark:hover:bg-ink-800 text-slate-500 dark:text-slate-400 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCw size={12} className={loadingRiskSurfaceNarrative ? 'animate-spin text-cyan-500' : ''} />
+                  </button>
+                </div>
+              </div>
+
+              {loadingRiskSurfaceNarrative ? (
+                <div className="py-2.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <RotateCw size={13} className="animate-spin text-cyan-500" />
+                  <span>Synthesizing geospatial risk telemetry via OpenRouter...</span>
+                </div>
+              ) : (
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {riskSurfaceNarrative?.narrative ||
+                    'Markers are pinned to deterministic state-centroid coordinates. Risk signals correlate model-derived composite scores against regional geographic clusters, enabling proactive interventions before compounding inter-state delays occur.'}
+                </p>
+              )}
+            </div>
           </div>
           <Link to="/map" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-brand-orange hover:underline self-start">
             Explore the national project map <ArrowRight size={14} />

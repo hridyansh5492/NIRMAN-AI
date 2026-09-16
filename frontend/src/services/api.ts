@@ -421,6 +421,32 @@ export interface PortfolioAINarrative {
   }
 }
 
+export interface RiskSurfaceNarrative {
+  narrative: string
+  model: string
+  available: boolean
+  error: string | null
+  source: 'openrouter' | 'template'
+  metrics_used?: {
+    plotted_projects_count: number
+    at_risk_projects_count: number
+    at_risk_percentage: string
+    watch_projects_count: number
+    on_track_projects_count: number
+    average_risk_score: string
+    primary_risk_drivers: string
+  }
+}
+
+export interface RiskSurfaceDataPayload {
+  total?: number
+  at_risk?: number
+  watch?: number
+  on_track?: number
+  avg_risk?: number
+  state_clusters?: Array<{ state: string; count: number; at_risk: number }>
+}
+
 /** Ask the OpenRouter-backed endpoint for a natural-language risk brief. */
 export async function getAINarrative(projectId: string): Promise<AINarrative> {
   try {
@@ -462,6 +488,41 @@ export async function getPortfolioAINarrative(refresh = false): Promise<Portfoli
     }
   }
 }
+
+/** Fetch geospatial Risk Surface Index narrative from OpenRouter. */
+export async function getRiskSurfaceNarrative(
+  data?: RiskSurfaceDataPayload,
+  refresh = false
+): Promise<RiskSurfaceNarrative> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/llm/risk-surface-narrative`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        total: data?.total ?? 0,
+        at_risk: data?.at_risk ?? 0,
+        watch: data?.watch ?? 0,
+        on_track: data?.on_track ?? 0,
+        avg_risk: data?.avg_risk ?? 0,
+        state_clusters: data?.state_clusters ?? [],
+        refresh,
+      }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  } catch (err) {
+    console.warn('Risk surface LLM narrative unavailable, using fallback', err)
+    return {
+      narrative:
+        'Geographic risk clustering exposes infrastructure corridors where multiple concurrent delays risk compounding into systemic supply chain and inter-state connectivity bottlenecks.',
+      model: 'template',
+      available: false,
+      error: err instanceof Error ? err.message : 'request failed',
+      source: 'template',
+    }
+  }
+}
+
 
 export interface RegisterProjectPayload {
   name?: string
