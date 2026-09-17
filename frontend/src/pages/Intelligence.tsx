@@ -126,7 +126,7 @@ export default function Intelligence() {
         <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400 mb-2">INTELLIGENCE LAYER</p>
         <h1 className="font-display text-3xl md:text-4xl font-bold text-ink-950 dark:text-white">From Data to Decisions</h1>
         <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-2xl">
-          Unified synthesis of machine-learning models, OpenRouter natural-language narratives, and telemetry early warnings.
+          A single dashboard combining smart predictions, clear AI explanations, and instant site alerts.
         </p>
       </div>
 

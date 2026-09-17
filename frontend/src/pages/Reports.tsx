@@ -186,7 +186,7 @@ export default function Reports() {
               Reports built for review rooms
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mt-2 max-w-2xl text-sm">
-              Convert real-time XGBoost risk predictions, SHAP attribution signals, and portfolio telemetry into official decision briefs.
+              Turn live project alerts and key delay causes into clear action summaries for leadership.
             </p>
           </div>
 

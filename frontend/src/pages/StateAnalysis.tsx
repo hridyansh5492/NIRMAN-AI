@@ -267,7 +267,7 @@ export default function StateAnalysis() {
             Pan-India Infrastructure Performance
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1.5 max-w-2xl text-sm sm:text-base">
-            Live database telemetry, capital velocity, and ML-scored risk signals across all 36 States and Union Territories.
+            Live spending speed, ground progress, and project health ratings across all 36 States and Union Territories.
           </p>
         </div>
 

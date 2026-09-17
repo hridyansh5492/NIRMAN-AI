@@ -110,8 +110,7 @@ export default function MapView() {
               Interactive infrastructure project map
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-xl">
-              Every project pinned to a deterministic state centroid and coloured by its live XGBoost risk
-              status. Zoom in, hover for a tooltip, and click any marker for the full intelligence dossier.
+              All projects mapped across India and color-coded by current risk level. Zoom in, hover for a quick preview, or click any pin for full project details.
             </p>
           </div>
           <div className="flex items-center gap-2">
