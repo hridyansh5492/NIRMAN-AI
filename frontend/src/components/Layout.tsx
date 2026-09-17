@@ -72,9 +72,9 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const currentNavItems = useMemo(() => {
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'subadmin') {
       return [
-        { to: '/admin', label: 'Workspace' },
+        { to: '/admin', label: role === 'subadmin' ? 'Sub-Admin Desk' : 'Workspace' },
         { to: '/projects', label: 'Projects' },
         { to: '/map', label: 'Project Map' },
         { to: '/intelligence', label: 'Intelligence' },
@@ -339,17 +339,27 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
             ) : (
               <div className="relative">
                 <div className="flex items-center gap-1.5">
-                  <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20">
-                    Admin
+                  <span className={`hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                    role === 'subadmin'
+                      ? 'bg-purple-500/10 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30'
+                      : 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/20'
+                  }`}>
+                    {role === 'subadmin' ? 'Sub-Admin' : 'Admin'}
                   </span>
                   <button
                     onClick={() => setUserMenuOpen((v) => !v)}
                     className="p-1 rounded-full border border-slate-200/60 dark:border-ink-700/60 bg-white/40 dark:bg-ink-800/40 hover:bg-slate-100 dark:hover:bg-ink-700 transition-all shadow-sm cursor-pointer"
-                    title="Director General (Admin)"
-                    aria-label="Director General profile"
+                    title={role === 'subadmin' ? `${user?.name} (Sub-Admin)` : 'Director General (Admin)'}
+                    aria-label="Admin profile"
                   >
-                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-xs font-bold shadow-sm">
-                      DG
+                    <span className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-white text-xs font-bold shadow-sm ${
+                      role === 'subadmin'
+                        ? 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                        : 'bg-gradient-to-br from-cyan-400 to-blue-500'
+                    }`}>
+                      {role === 'subadmin'
+                        ? (user?.name ? user.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'SA')
+                        : 'DG'}
                     </span>
                   </button>
                 </div>
@@ -358,19 +368,26 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
                   <div className="absolute right-0 top-12 w-64 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 shadow-xl p-3 z-50 text-xs space-y-2.5 animate-in fade-in zoom-in-95 duration-100">
                     <div className="border-b border-slate-100 dark:border-ink-800 pb-2">
                       <p className="font-bold text-slate-900 dark:text-white">
-                        {user?.name || 'Director General'}
+                        {user?.name || (role === 'subadmin' ? 'Sub-Admin Inspector' : 'Director General')}
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        {user?.title || 'National Oversight Administrator'}
+                        {user?.title || (role === 'subadmin' ? 'Regional Quality Inspector' : 'National Oversight Administrator')}
                       </p>
+                      {role === 'subadmin' && user?.assigned_contractor_id && (
+                        <div className="mt-1.5 p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40">
+                          <p className="text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                            Assigned Contractor: <span className="font-bold">{user.assigned_contractor_id}</span>
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <NavLink
                       to="/admin"
                       onClick={() => setUserMenuOpen(false)}
                       className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-ink-800 text-slate-700 dark:text-slate-300 transition-colors"
                     >
-                      <Building2 size={14} className="text-cyan-500" />
-                      <span>Workspace</span>
+                      <Building2 size={14} className={role === 'subadmin' ? 'text-purple-500' : 'text-cyan-500'} />
+                      <span>{role === 'subadmin' ? 'Sub-Admin Desk' : 'Workspace'}</span>
                     </NavLink>
                     <button
                       onClick={() => {

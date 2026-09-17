@@ -240,7 +240,7 @@ export interface ContractorSubmission {
   details_json?: string
 }
 
-export type UserRole = 'admin' | 'contractor' | 'guest'
+export type UserRole = 'admin' | 'subadmin' | 'contractor' | 'guest'
 
 export interface AuthUser {
   id: string
@@ -252,6 +252,44 @@ export interface AuthUser {
   phone?: string
   agency?: string
   rating?: number
+  admin_level?: 'main' | 'sub'
+  assigned_contractor_id?: string | null
+  approval_status?: 'pending' | 'approved' | 'rejected'
+}
+
+export interface PendingAccount {
+  account_type: 'contractor' | 'subadmin'
+  id: string | number
+  name: string
+  email: string
+  phone?: string
+  created_at?: string
+  details: {
+    contractor_id?: string
+    company_name?: string
+    contact_person?: string
+    admin_id?: string
+    username?: string
+    title?: string
+    agency?: string
+    assigned_contractor_id?: string
+    approval_status?: string
+  }
+}
+
+export interface SubAdminItem {
+  id: number
+  admin_id: string
+  username: string
+  full_name: string
+  email: string
+  agency: string
+  title: string
+  admin_level: 'sub'
+  assigned_contractor_id: string | null
+  assigned_company_name: string | null
+  approval_status: 'pending' | 'approved' | 'rejected'
+  created_at?: string
 }
 
 

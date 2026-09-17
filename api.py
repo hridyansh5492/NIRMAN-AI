@@ -63,9 +63,17 @@ def _ensure_verification_schema():
     db_manager.init_reports_photos_db()
 
 
+_contractor_schema_initialized = False
+
 def _ensure_contractor_schema():
     """Ensure contractors_admin.db and reports_photos.db schemas and tables exist."""
-    db_manager.init_all_databases()
+    global _contractor_schema_initialized
+    if not _contractor_schema_initialized:
+        try:
+            db_manager.init_all_databases()
+            _contractor_schema_initialized = True
+        except Exception as e:
+            print(f"Could not initialize contractor schema: {e}")
 
 
 @app.get("/api/databases/status")
@@ -1103,8 +1111,83 @@ def llm_risk_surface_narrative(
 # ---------------------------------------------------------------------------
 # Contractor Portal, Geofence Verification & Unified Auth
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Contractor Portal, Geofence Verification & Unified Auth
+# ---------------------------------------------------------------------------
+class RegisterRequest(BaseModel):
+    role: Optional[str] = None
+    account_type: Optional[str] = None
+    contractor_id: Optional[str] = None
+    company_name: Optional[str] = None
+    contact_person: Optional[str] = None
+    username: Optional[str] = None
+    name: Optional[str] = None
+    full_name: Optional[str] = None
+    title: Optional[str] = None
+    agency: Optional[str] = None
+    target_contractor_id: Optional[str] = None
+    email: str
+    phone: Optional[str] = None
+    password: str
+
+
+@app.post("/api/auth/register")
+def auth_register(req: RegisterRequest):
+    _ensure_contractor_schema()
+    target_role = (req.role or req.account_type or "contractor").strip().lower()
+    pwd = req.password.strip()
+    email = req.email.strip()
+
+    if not pwd:
+        raise HTTPException(400, "Password is required")
+    if not email:
+        raise HTTPException(400, "Email is required")
+
+    try:
+        if target_role == "contractor":
+            cid = (req.contractor_id or "").strip().upper()
+            cname = (req.company_name or "").strip()
+            cperson = (req.contact_person or "").strip()
+            if not cid:
+                raise HTTPException(400, "Contractor ID is required")
+            if not cname:
+                raise HTTPException(400, "Company name is required")
+            res = db_manager.register_contractor(
+                contractor_id=cid,
+                password=pwd,
+                company_name=cname,
+                contact_person=cperson,
+                email=email,
+                phone=(req.phone or "").strip()
+            )
+            return res
+        elif target_role in ("subadmin", "admin"):
+            uname = (req.username or "").strip().lower()
+            name = (req.full_name or req.name or "").strip()
+            if not uname:
+                raise HTTPException(400, "Username / Sub-Admin ID is required")
+            if not name:
+                raise HTTPException(400, "Full name is required")
+            res = db_manager.register_subadmin(
+                username=uname,
+                password=pwd,
+                name=name,
+                email=email,
+                title=(req.title or "Sub-Admin Auditor").strip(),
+                agency=(req.agency or "MoSPI Field Division").strip(),
+                target_contractor_id=(req.target_contractor_id or None)
+            )
+            return res
+        else:
+            raise HTTPException(400, f"Unsupported registration role '{req.role}'. Choose 'contractor' or 'subadmin'.")
+    except ValueError as ve:
+        raise HTTPException(400, str(ve))
+    except Exception as e:
+        raise HTTPException(500, f"Registration failed: {str(e)}")
+
+
 class LoginRequest(BaseModel):
-    role: str = "contractor"  # "admin" | "contractor"
+    role: str = "contractor"  # "admin" | "contractor" | "subadmin"
     contractor_id: Optional[str] = None
     username: Optional[str] = None
     password: Optional[str] = None
@@ -1115,7 +1198,7 @@ def auth_login(req: LoginRequest):
     _ensure_contractor_schema()
     conn_admin = db_manager.get_contractors_admin_conn()
     try:
-        is_admin_req = req.role == "admin" or ((req.username or req.contractor_id or "").strip().lower() in {"admin", "adm-dg-01", "director", "dg"})
+        is_admin_req = req.role in ("admin", "subadmin") or ((req.username or req.contractor_id or "").strip().lower() in {"admin", "adm-dg-01", "director", "dg"})
         if is_admin_req:
             admin_id = (req.username or req.contractor_id or "").strip()
             pwd = (req.password or "").strip()
@@ -1125,7 +1208,7 @@ def auth_login(req: LoginRequest):
 
             cur = conn_admin.cursor()
             cur.execute(
-                "SELECT admin_id, username, password, name, role, title, company, agency, email "
+                "SELECT admin_id, username, password, name, role, title, company, agency, email, approval_status, admin_level, assigned_contractor_id "
                 "FROM admins WHERE LOWER(username) = LOWER(?) OR LOWER(admin_id) = LOWER(?)",
                 (admin_id, admin_id)
             )
@@ -1135,7 +1218,7 @@ def auth_login(req: LoginRequest):
                 if admin_id.lower() in {"admin", "adm-dg-01", "director", "dg"}:
                     admin_row = ("ADM-DG-01", "admin", "admin123", "Director General", "admin",
                                  "Director General / Oversight Administrator", "Govt of India (MoSPI Oversight)",
-                                 "National Infrastructure Monitoring Authority", "dg.oversight@gov.in")
+                                 "National Infrastructure Monitoring Authority", "dg.oversight@gov.in", "approved", "main", None)
                 else:
                     raise HTTPException(401, "Invalid admin credentials")
 
@@ -1143,19 +1226,31 @@ def auth_login(req: LoginRequest):
             if pwd != stored_pwd and pwd != "admin123":
                 raise HTTPException(401, "Invalid admin credentials")
 
+            approval_status = (admin_row[9] or "approved").lower()
+            if approval_status == "pending":
+                raise HTTPException(403, "Account Pending Approval: Your Sub-Admin registration is currently awaiting verification and approval by the Main Admin.")
+            elif approval_status == "rejected":
+                raise HTTPException(403, "Account Registration Rejected: Your Sub-Admin registration was rejected by the Main Admin.")
+
+            admin_lvl = admin_row[10] or ("sub" if admin_row[4] == "subadmin" else "main")
+            effective_role = "subadmin" if admin_lvl == "sub" else "admin"
+
             return {
                 "status": "success",
-                "role": "admin",
+                "role": effective_role,
                 "user": {
                     "id": admin_row[0],
                     "name": admin_row[3],
                     "company": admin_row[6],
-                    "role": admin_row[4],
+                    "role": effective_role,
+                    "admin_level": admin_lvl,
+                    "assigned_contractor_id": admin_row[11],
                     "title": admin_row[5],
                     "email": admin_row[8],
-                    "agency": admin_row[7]
+                    "agency": admin_row[7],
+                    "approval_status": approval_status,
                 },
-                "token": "admin_session_token_xyz"
+                "token": f"admin_session_{admin_row[0]}"
             }
         else:
             cid = (req.contractor_id or req.username or "").strip().upper()
@@ -1166,7 +1261,7 @@ def auth_login(req: LoginRequest):
 
             cur = conn_admin.cursor()
             cur.execute(
-                "SELECT contractor_id, password, company_name, contact_person, email, phone, rating, active_contracts "
+                "SELECT contractor_id, password, company_name, contact_person, email, phone, rating, active_contracts, approval_status "
                 "FROM contractors WHERE UPPER(contractor_id) = ?",
                 (cid,)
             )
@@ -1178,11 +1273,17 @@ def auth_login(req: LoginRequest):
                     raise HTTPException(404, f"Contractor ID '{cid}' not found in registry")
                 c_row = (c_mock["contractor_id"], "contractor123", c_mock["company_name"],
                          c_mock["contact_person"], c_mock["email"], c_mock["phone"],
-                         c_mock.get("rating", 4.5), c_mock.get("active_contracts", 4))
+                         c_mock.get("rating", 4.5), c_mock.get("active_contracts", 4), "approved")
 
             stored_pwd = c_row[1]
             if pwd != stored_pwd and pwd != "contractor123":
                 raise HTTPException(401, "Invalid contractor password")
+
+            approval_status = (c_row[8] or "approved").lower()
+            if approval_status == "pending":
+                raise HTTPException(403, "Account Pending Approval: Your contractor account has been registered and is currently pending review and approval by the Main Admin.")
+            elif approval_status == "rejected":
+                raise HTTPException(403, "Account Registration Rejected: Your contractor account registration was rejected by the Main Admin.")
 
             return {
                 "status": "success",
@@ -1196,11 +1297,68 @@ def auth_login(req: LoginRequest):
                     "email": c_row[4],
                     "phone": c_row[5],
                     "rating": float(c_row[6] or 4.5),
+                    "approval_status": approval_status,
                 },
                 "token": f"contractor_session_{c_row[0]}"
             }
     finally:
         conn_admin.close()
+
+
+@app.get("/api/admin/pending-approvals")
+def get_admin_pending_approvals():
+    """Retrieve all pending registration requests for Contractors and Sub-Admins."""
+    _ensure_contractor_schema()
+    return db_manager.get_pending_approvals()
+
+
+class ApproveAccountRequest(BaseModel):
+    account_type: str  # "contractor" | "subadmin"
+    account_id: Optional[str] = None
+    id: Optional[str] = None
+    action: str  # "approve" | "reject"
+    assigned_contractor_id: Optional[str] = None
+    remarks: Optional[str] = None
+    reviewer_name: Optional[str] = "Director General (Admin)"
+
+
+@app.post("/api/admin/approve-account")
+def approve_admin_account(req: ApproveAccountRequest):
+    """Main Admin approves or rejects a contractor or sub-admin account."""
+    _ensure_contractor_schema()
+    target_id = (req.account_id or req.id or "").strip()
+    if not target_id:
+        raise HTTPException(400, "Account ID is required")
+    try:
+        res = db_manager.approve_or_reject_account(
+            account_type=req.account_type,
+            account_id=target_id,
+            action=req.action,
+            assigned_contractor_id=req.assigned_contractor_id,
+            approved_by=req.reviewer_name or "Director General (Admin)",
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/admin/subadmins")
+def get_admin_subadmins():
+    """List all registered and approved sub-admins with their assigned contractor."""
+    _ensure_contractor_schema()
+    return db_manager.get_subadmins()
+
+
+class AssignSubadminRequest(BaseModel):
+    contractor_id: str
+
+
+@app.post("/api/admin/subadmins/{subadmin_id}/assign")
+def assign_subadmin(subadmin_id: str, req: AssignSubadminRequest):
+    """Main Admin updates the contractor monitored by a sub-admin."""
+    _ensure_contractor_schema()
+    return db_manager.assign_subadmin_contractor(subadmin_id, req.contractor_id)
+
 
 
 @app.get("/api/contractors")
@@ -1838,17 +1996,24 @@ def admin_set_geofence(req: AdminGeofenceRequest):
 
 
 @app.get("/api/admin/audits")
-def admin_audits(limit: int = 100):
+def admin_audits(limit: int = 100, contractor_id: Optional[str] = None):
     _ensure_contractor_schema()
     conn_rp = db_manager.get_reports_photos_conn()
     conn_admin = db_manager.get_contractors_admin_conn()
     try:
         conn_rp.row_factory = sqlite3.Row
         cur = conn_rp.cursor()
-        cur.execute("""
-        SELECT * FROM contractor_progress_reports
-        ORDER BY id DESC LIMIT ?
-        """, (limit,))
+        if contractor_id:
+            cur.execute("""
+            SELECT * FROM contractor_progress_reports
+            WHERE UPPER(contractor_id) = UPPER(?)
+            ORDER BY id DESC LIMIT ?
+            """, (contractor_id.strip(), limit))
+        else:
+            cur.execute("""
+            SELECT * FROM contractor_progress_reports
+            ORDER BY id DESC LIMIT ?
+            """, (limit,))
         reports = [dict(r) for r in cur.fetchall()]
 
         cur_adm = conn_admin.cursor()
@@ -1874,6 +2039,9 @@ class AuditReviewRequest(BaseModel):
     status: str  # "approved" or "rejected"
     reviewer_notes: Optional[str] = None
     reviewer_name: Optional[str] = "Director General (Admin)"
+    reviewer_role: Optional[str] = "main_admin"  # "main_admin" | "sub_admin"
+    reviewer_id: Optional[str] = None
+    override_reason: Optional[str] = None  # Mandatory when Main Admin overrides a sub-admin review
 
 
 @app.post("/api/admin/audits/{submission_id}/review")
@@ -1883,19 +2051,18 @@ def review_audit(submission_id: str, req: AuditReviewRequest):
     if new_status not in ("approved", "rejected"):
         raise HTTPException(status_code=400, detail="Status must be 'approved' or 'rejected'")
 
-    counts_val = 1 if new_status == "approved" else 0
-    stat_val = f"manually_{new_status}"
-    review_time = datetime.utcnow().isoformat() + "Z"
+    review_time = datetime.now(timezone.utc).isoformat()
+    reviewer_role = (req.reviewer_role or "main_admin").strip().lower()
 
     conn_rp = db_manager.get_reports_photos_conn()
     try:
         cur = conn_rp.cursor()
-        cur.execute("SELECT id, project_id, physical_progress_pct, details_json FROM contractor_progress_reports WHERE submission_id = ?", (submission_id,))
+        cur.execute("SELECT id, project_id, physical_progress_pct, details_json, verification_status FROM contractor_progress_reports WHERE submission_id = ?", (submission_id,))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail=f"Submission {submission_id} not found")
 
-        rep_id, project_id, phys_pct, details_str = row
+        rep_id, project_id, phys_pct, details_str, current_verif_status = row
         details = {}
         try:
             if details_str:
@@ -1903,12 +2070,43 @@ def review_audit(submission_id: str, req: AuditReviewRequest):
         except Exception:
             pass
 
-        details["manual_review"] = {
-            "reviewed_by": req.reviewer_name or "Director General (Admin)",
-            "reviewed_at": review_time,
-            "status": new_status,
-            "notes": req.reviewer_notes or f"Manually {new_status} by Admin",
-        }
+        has_subadmin_review = bool(details.get("subadmin_review")) or str(current_verif_status or "").startswith("subadmin_")
+
+        if reviewer_role in ("subadmin", "sub_admin"):
+            # Sub-admin review
+            stat_val = f"subadmin_{new_status}"
+            counts_val = 1 if new_status == "approved" else 0
+            details["subadmin_review"] = {
+                "reviewed_by": req.reviewer_name or "Sub-Admin Inspector",
+                "reviewer_id": req.reviewer_id or "SADM-INSP",
+                "reviewed_at": review_time,
+                "status": new_status,
+                "notes": (req.reviewer_notes or f"Sub-Admin verified as {new_status}").strip(),
+            }
+        else:
+            # Main admin review / recheck / override
+            if has_subadmin_review:
+                override_justification = (req.override_reason or "").strip()
+                if not override_justification:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Mandatory requirement: A specific reason for overriding the Sub-Admin's verdict must be noted down."
+                    )
+            else:
+                override_justification = (req.override_reason or "").strip()
+
+            stat_val = f"manually_{new_status}"
+            counts_val = 1 if new_status == "approved" else 0
+            details["main_admin_review"] = {
+                "reviewed_by": req.reviewer_name or "Director General (Admin)",
+                "reviewed_at": review_time,
+                "status": new_status,
+                "notes": req.reviewer_notes or f"Final verdict {new_status} by Main Admin",
+                "override_reason": override_justification or (req.reviewer_notes or ""),
+                "overrode_subadmin": has_subadmin_review,
+                "previous_subadmin_verdict": details.get("subadmin_review", {}).get("status") if has_subadmin_review else None,
+            }
+            details["manual_review"] = details["main_admin_review"]
 
         cur.execute("""
         UPDATE contractor_progress_reports
@@ -1937,8 +2135,10 @@ def review_audit(submission_id: str, req: AuditReviewRequest):
         "verification_status": stat_val,
         "counts_towards_progress": counts_val,
         "reviewed_at": review_time,
-        "message": f"Submission {submission_id} successfully marked as {new_status.upper()}."
+        "details": details,
+        "message": f"Submission {submission_id} successfully marked as {new_status.upper()} ({'Sub-Admin Review' if reviewer_role in ('subadmin', 'sub_admin') else 'Main Admin Final Verdict'})."
     }
+
 
 
 @app.get("/api/notifications")

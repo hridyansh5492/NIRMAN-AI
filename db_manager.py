@@ -322,6 +322,11 @@ def init_contractors_admin_db() -> None:
                 company TEXT,
                 agency TEXT,
                 email TEXT,
+                approval_status TEXT DEFAULT 'approved',
+                admin_level TEXT DEFAULT 'main',
+                assigned_contractor_id TEXT,
+                approved_by TEXT,
+                approved_at TEXT,
                 created_at TEXT NOT NULL
             )
         """)
@@ -337,9 +342,49 @@ def init_contractors_admin_db() -> None:
                 phone TEXT,
                 rating NUMERIC DEFAULT 4.5,
                 active_contracts INT DEFAULT 0,
+                approval_status TEXT DEFAULT 'approved',
+                approved_by TEXT,
+                approved_at TEXT,
                 created_at TEXT NOT NULL
             )
         """)
+
+        # Run safe column additions for existing installations
+        admin_cols = [
+            ("approval_status", "TEXT DEFAULT 'approved'"),
+            ("admin_level", "TEXT DEFAULT 'main'"),
+            ("assigned_contractor_id", "TEXT"),
+            ("approved_by", "TEXT"),
+            ("approved_at", "TEXT"),
+        ]
+        contractor_cols = [
+            ("approval_status", "TEXT DEFAULT 'approved'"),
+            ("approved_by", "TEXT"),
+            ("approved_at", "TEXT"),
+        ]
+
+        if is_supabase():
+            for col_name, col_type in admin_cols:
+                try:
+                    cur.execute(f"ALTER TABLE admins ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+                except Exception:
+                    pass
+            for col_name, col_type in contractor_cols:
+                try:
+                    cur.execute(f"ALTER TABLE contractors ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+                except Exception:
+                    pass
+        else:
+            for col_name, col_type in admin_cols:
+                try:
+                    cur.execute(f"ALTER TABLE admins ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+            for col_name, col_type in contractor_cols:
+                try:
+                    cur.execute(f"ALTER TABLE contractors ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
 
         # 3. Contractor Assignments table
         cur.execute("""
@@ -371,8 +416,8 @@ def init_contractors_admin_db() -> None:
         if cur.fetchone()[0] == 0:
             now_str = datetime.now(timezone.utc).isoformat()
             cur.execute("""
-                INSERT INTO admins (admin_id, username, password, name, role, title, company, agency, email, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO admins (admin_id, username, password, name, role, title, company, agency, email, approval_status, admin_level, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 "ADM-DG-01",
                 "admin",
@@ -383,8 +428,11 @@ def init_contractors_admin_db() -> None:
                 "Govt of India (MoSPI Oversight)",
                 "National Infrastructure Monitoring Authority",
                 "dg.oversight@gov.in",
+                "approved",
+                "main",
                 now_str
             ))
+
 
         # Seed contractors (migrate from project_monitoring.db or mock_data.CONTRACTORS)
         cur.execute("SELECT COUNT(*) FROM contractors")
@@ -746,6 +794,273 @@ def update_project_sanctioned_cost(
             results["supabase_error"] = str(e)
 
     return results
+
+
+def register_contractor(contractor_id: str, password: str, company_name: str, contact_person: str, email: str, phone: str) -> dict:
+    """Register a new contractor with pending approval status."""
+    now_str = datetime.now(timezone.utc).isoformat()
+    cid = contractor_id.strip().upper()
+    conn = get_contractors_admin_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT contractor_id FROM contractors WHERE UPPER(contractor_id) = ?", (cid,))
+        if cur.fetchone():
+            raise ValueError(f"Contractor ID '{cid}' is already registered.")
+
+        cur.execute("""
+            INSERT INTO contractors
+            (contractor_id, password, company_name, contact_person, email, phone, rating, active_contracts, approval_status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (cid, password, company_name, contact_person, email, phone, 4.5, 0, 'pending', now_str))
+        conn.commit()
+    finally:
+        conn.close()
+
+    if is_supabase() and os.path.exists(DB_CONTRACTORS_ADMIN):
+        try:
+            sq = sqlite3.connect(DB_CONTRACTORS_ADMIN)
+            sq.execute("""
+                INSERT OR REPLACE INTO contractors
+                (contractor_id, password, company_name, contact_person, email, phone, rating, active_contracts, approval_status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (cid, password, company_name, contact_person, email, phone, 4.5, 0, 'pending', now_str))
+            sq.commit()
+            sq.close()
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "contractor_id": cid,
+        "company_name": company_name,
+        "approval_status": "pending",
+        "message": "Contractor registration submitted for review by Main Admin."
+    }
+
+
+def register_subadmin(username: str, password: str, name: str, email: str, title: str = None, agency: str = None, target_contractor_id: str = None) -> dict:
+    """Register a new sub-admin with pending approval status."""
+    now_str = datetime.now(timezone.utc).isoformat()
+    uname = username.strip().lower()
+    admin_id = f"SADM-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')[-6:]}"
+    conn = get_contractors_admin_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT admin_id FROM admins WHERE LOWER(username) = ?", (uname,))
+        if cur.fetchone():
+            raise ValueError(f"Username '{uname}' is already taken.")
+
+        cur.execute("""
+            INSERT INTO admins
+            (admin_id, username, password, name, role, title, company, agency, email, approval_status, admin_level, assigned_contractor_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (admin_id, uname, password, name, 'subadmin', title or 'Sub-Admin Auditor', 'MoSPI Field Division', agency or 'National Oversight', email, 'pending', 'sub', target_contractor_id, now_str))
+        conn.commit()
+    finally:
+        conn.close()
+
+    if is_supabase() and os.path.exists(DB_CONTRACTORS_ADMIN):
+        try:
+            sq = sqlite3.connect(DB_CONTRACTORS_ADMIN)
+            sq.execute("""
+                INSERT OR REPLACE INTO admins
+                (admin_id, username, password, name, role, title, company, agency, email, approval_status, admin_level, assigned_contractor_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (admin_id, uname, password, name, 'subadmin', title or 'Sub-Admin Auditor', 'MoSPI Field Division', agency or 'National Oversight', email, 'pending', 'sub', target_contractor_id, now_str))
+            sq.commit()
+            sq.close()
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "admin_id": admin_id,
+        "username": uname,
+        "name": name,
+        "approval_status": "pending",
+        "assigned_contractor_id": target_contractor_id,
+        "message": "Sub-Admin registration submitted for review by Main Admin."
+    }
+
+
+def get_pending_approvals() -> dict:
+    """Retrieve all pending registration requests across contractors and sub-admins."""
+    conn = get_contractors_admin_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT contractor_id, company_name, contact_person, email, phone, approval_status, created_at
+            FROM contractors
+            WHERE approval_status = 'pending'
+            ORDER BY created_at DESC
+        """)
+        pending_contractors = [{
+            "id": r[0],
+            "type": "contractor",
+            "identifier": r[0],
+            "name": r[1],
+            "contact_person": r[2],
+            "email": r[3],
+            "phone": r[4],
+            "approval_status": r[5] or "pending",
+            "created_at": r[6],
+        } for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT a.admin_id, a.username, a.name, a.email, a.title, a.agency, a.assigned_contractor_id, a.approval_status, a.created_at,
+                   c.company_name as assigned_company_name
+            FROM admins a
+            LEFT JOIN contractors c ON a.assigned_contractor_id = c.contractor_id
+            WHERE a.approval_status = 'pending'
+            ORDER BY a.created_at DESC
+        """)
+        pending_subadmins = [{
+            "id": r[0],
+            "type": "subadmin",
+            "identifier": r[1],
+            "name": r[2],
+            "email": r[3],
+            "title": r[4],
+            "agency": r[5],
+            "assigned_contractor_id": r[6],
+            "assigned_company_name": r[9] or r[6] or "Unassigned",
+            "approval_status": r[7] or "pending",
+            "created_at": r[8],
+        } for r in cur.fetchall()]
+
+        return {
+            "pending_contractors": pending_contractors,
+            "pending_subadmins": pending_subadmins,
+            "total_pending": len(pending_contractors) + len(pending_subadmins),
+        }
+    finally:
+        conn.close()
+
+
+def approve_or_reject_account(account_type: str, account_id: str, action: str, assigned_contractor_id: str = None, approved_by: str = "Director General (Admin)") -> dict:
+    """Main Admin approves or rejects a contractor or sub-admin account."""
+    now_str = datetime.now(timezone.utc).isoformat()
+    new_status = "approved" if action.lower() == "approve" else "rejected"
+    conn = get_contractors_admin_conn()
+    try:
+        cur = conn.cursor()
+        if account_type.lower() == "contractor":
+            cur.execute("""
+                UPDATE contractors
+                SET approval_status = ?, approved_by = ?, approved_at = ?
+                WHERE contractor_id = ?
+            """, (new_status, approved_by, now_str, account_id))
+            conn.commit()
+
+            if is_supabase() and os.path.exists(DB_CONTRACTORS_ADMIN):
+                try:
+                    sq = sqlite3.connect(DB_CONTRACTORS_ADMIN)
+                    sq.execute("UPDATE contractors SET approval_status = ?, approved_by = ?, approved_at = ? WHERE contractor_id = ?", (new_status, approved_by, now_str, account_id))
+                    sq.commit()
+                    sq.close()
+                except Exception:
+                    pass
+        elif account_type.lower() in ("subadmin", "admin"):
+            if new_status == "approved" and assigned_contractor_id:
+                cur.execute("""
+                    UPDATE admins
+                    SET approval_status = ?, approved_by = ?, approved_at = ?, assigned_contractor_id = ?, admin_level = 'sub', role = 'subadmin'
+                    WHERE admin_id = ? OR username = ?
+                """, (new_status, approved_by, now_str, assigned_contractor_id, account_id, account_id))
+            else:
+                cur.execute("""
+                    UPDATE admins
+                    SET approval_status = ?, approved_by = ?, approved_at = ?
+                    WHERE admin_id = ? OR username = ?
+                """, (new_status, approved_by, now_str, account_id, account_id))
+            conn.commit()
+
+            if is_supabase() and os.path.exists(DB_CONTRACTORS_ADMIN):
+                try:
+                    sq = sqlite3.connect(DB_CONTRACTORS_ADMIN)
+                    if new_status == "approved" and assigned_contractor_id:
+                        sq.execute("UPDATE admins SET approval_status = ?, approved_by = ?, approved_at = ?, assigned_contractor_id = ?, admin_level = 'sub', role = 'subadmin' WHERE admin_id = ? OR username = ?", (new_status, approved_by, now_str, assigned_contractor_id, account_id, account_id))
+                    else:
+                        sq.execute("UPDATE admins SET approval_status = ?, approved_by = ?, approved_at = ? WHERE admin_id = ? OR username = ?", (new_status, approved_by, now_str, account_id, account_id))
+                    sq.commit()
+                    sq.close()
+                except Exception:
+                    pass
+        else:
+            raise ValueError(f"Unknown account type '{account_type}'")
+    finally:
+        conn.close()
+
+    return {
+        "status": "success",
+        "account_id": account_id,
+        "account_type": account_type,
+        "approval_status": new_status,
+        "assigned_contractor_id": assigned_contractor_id,
+        "approved_by": approved_by,
+        "approved_at": now_str,
+    }
+
+
+def get_subadmins() -> list:
+    """List all registered and approved sub-admins with their assigned contractor."""
+    conn = get_contractors_admin_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT a.admin_id, a.username, a.name, a.email, a.title, a.agency, a.assigned_contractor_id, a.approval_status, a.created_at,
+                   c.company_name as assigned_company_name
+            FROM admins a
+            LEFT JOIN contractors c ON a.assigned_contractor_id = c.contractor_id
+            WHERE a.admin_level = 'sub' OR a.role = 'subadmin'
+            ORDER BY a.created_at DESC
+        """)
+        rows = cur.fetchall()
+        return [{
+            "admin_id": r[0],
+            "username": r[1],
+            "name": r[2],
+            "email": r[3],
+            "title": r[4],
+            "agency": r[5],
+            "assigned_contractor_id": r[6],
+            "approval_status": r[7] or "approved",
+            "created_at": r[8],
+            "assigned_company_name": r[9] or r[6] or "Unassigned",
+        } for r in rows]
+    finally:
+        conn.close()
+
+
+def assign_subadmin_contractor(subadmin_id: str, contractor_id: str) -> dict:
+    """Main Admin updates/reassigns the contractor monitored by a sub-admin."""
+    conn = get_contractors_admin_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE admins
+            SET assigned_contractor_id = ?, admin_level = 'sub', role = 'subadmin'
+            WHERE admin_id = ? OR username = ?
+        """, (contractor_id, subadmin_id, subadmin_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+    if is_supabase() and os.path.exists(DB_CONTRACTORS_ADMIN):
+        try:
+            sq = sqlite3.connect(DB_CONTRACTORS_ADMIN)
+            sq.execute("UPDATE admins SET assigned_contractor_id = ?, admin_level = 'sub', role = 'subadmin' WHERE admin_id = ? OR username = ?", (contractor_id, subadmin_id, subadmin_id))
+            sq.commit()
+            sq.close()
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "subadmin_id": subadmin_id,
+        "assigned_contractor_id": contractor_id,
+    }
+
 
 
 if __name__ == "__main__":

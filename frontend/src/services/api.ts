@@ -676,7 +676,7 @@ export function isPointInsideLamina(lat: number, lng: number, polygon: [number, 
 }
 
 export async function authLogin(
-  role: 'admin' | 'contractor',
+  role: 'admin' | 'contractor' | 'subadmin',
   id?: string,
   password?: string
 ): Promise<{ status: string; role: string; user: AuthUser; token: string }> {
@@ -695,6 +695,36 @@ export async function authLogin(
     try {
       const data = await res.json()
       if (data.detail) msg = data.detail
+    } catch {}
+    throw new Error(msg)
+  }
+  return await res.json()
+}
+
+export async function authRegister(data: {
+  account_type: 'contractor' | 'subadmin'
+  contractor_id?: string
+  company_name?: string
+  contact_person?: string
+  username?: string
+  full_name?: string
+  email: string
+  phone?: string
+  agency?: string
+  title?: string
+  target_contractor_id?: string
+  password?: string
+}): Promise<{ status: string; message: string; data?: any }> {
+  const res = await fetch(`${BASE_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`
+    try {
+      const d = await res.json()
+      if (d.detail) msg = d.detail
     } catch {}
     throw new Error(msg)
   }
@@ -753,9 +783,13 @@ export async function setAdminGeofence(
   return await res.json()
 }
 
-export async function getAdminAudits(limit: number = 100): Promise<any[]> {
+export async function getAdminAudits(limit: number = 100, contractorId?: string): Promise<any[]> {
   try {
-    const res = await fetch(`${BASE_URL}/api/admin/audits?limit=${limit}`)
+    let url = `${BASE_URL}/api/admin/audits?limit=${limit}`
+    if (contractorId) {
+      url += `&contractor_id=${encodeURIComponent(contractorId)}`
+    }
+    const res = await fetch(url)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   } catch (err) {
@@ -767,16 +801,79 @@ export async function getAdminAudits(limit: number = 100): Promise<any[]> {
 export async function reviewAdminAudit(
   submissionId: string,
   status: 'approved' | 'rejected',
-  notes?: string
+  notes?: string,
+  reviewerRole: 'main_admin' | 'sub_admin' = 'main_admin',
+  reviewerName?: string,
+  reviewerId?: string,
+  overrideReason?: string
 ): Promise<any> {
   const res = await fetch(`${BASE_URL}/api/admin/audits/${encodeURIComponent(submissionId)}/review`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       status,
-      reviewer_notes: notes || `Manually marked as ${status} by Admin`,
-      reviewer_name: 'Director General (Admin)',
+      reviewer_notes: notes || `Marked as ${status}`,
+      reviewer_role: reviewerRole,
+      reviewer_name: reviewerName || (reviewerRole === 'sub_admin' ? 'Sub-Admin Inspector' : 'Director General (Admin)'),
+      reviewer_id: reviewerId,
+      override_reason: overrideReason,
     }),
+  })
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`
+    try {
+      const d = await res.json()
+      if (d.detail) msg = d.detail
+    } catch {}
+    throw new Error(msg)
+  }
+  return await res.json()
+}
+
+export async function getPendingApprovals(): Promise<{
+  pending_contractors: any[]
+  pending_subadmins: any[]
+  total_pending: number
+}> {
+  const res = await fetch(`${BASE_URL}/api/admin/pending-approvals`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch pending approvals`)
+  return await res.json()
+}
+
+export async function approveAccount(data: {
+  account_type: 'contractor' | 'subadmin'
+  id: string | number
+  action: 'approve' | 'reject'
+  assigned_contractor_id?: string
+  admin_id?: string
+}): Promise<any> {
+  const res = await fetch(`${BASE_URL}/api/admin/approve-account`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`
+    try {
+      const d = await res.json()
+      if (d.detail) msg = d.detail
+    } catch {}
+    throw new Error(msg)
+  }
+  return await res.json()
+}
+
+export async function getSubAdmins(): Promise<any[]> {
+  const res = await fetch(`${BASE_URL}/api/admin/subadmins`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch sub-admins`)
+  return await res.json()
+}
+
+export async function assignSubAdminContractor(subadminId: string | number, contractorId: string): Promise<any> {
+  const res = await fetch(`${BASE_URL}/api/admin/subadmins/${subadminId}/assign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contractor_id: contractorId }),
   })
   if (!res.ok) {
     let msg = `HTTP ${res.status}`

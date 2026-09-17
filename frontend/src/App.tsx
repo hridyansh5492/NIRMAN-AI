@@ -15,7 +15,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 
 function RootRoute() {
   const { role } = useAuth()
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'subadmin') {
     return <Navigate to="/admin" replace />
   }
   if (role === 'contractor') {
@@ -26,7 +26,7 @@ function RootRoute() {
 
 function AdminRoute() {
   const { role } = useAuth()
-  if (role !== 'admin') {
+  if (role !== 'admin' && role !== 'subadmin') {
     return <Navigate to="/" replace />
   }
   return <AdminPanel />
