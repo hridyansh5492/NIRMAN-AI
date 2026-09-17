@@ -1,197 +1,289 @@
-# Nirman-AI (Paimana)
+# Nirman-AI (Paimana) 🏛️
+### *National Infrastructure Oversight Co-Pilot, Zero-Trust Anti-Fraud Verification & Risk Intelligence Platform*
 
-An **Infrastructure Oversight Co-Pilot** that monitors India's large infrastructure projects for **cost and time overruns**. It ingests monthly progress reports (MoSPI baselines), grounds synthetic project trajectories in real state/sector trends, trains **XGBoost** cost/time-overrun (COP/TOP) models, explains every prediction with **SHAP**, and surfaces actionable intelligence through a **FastAPI** backend and an enterprise **React** dashboard.
-
-Now featuring an **On-Site Contractor Portal** with **Geofence Lamina Verification**, **EXIF/ELA Photo Auditing**, **Unified Authentication**, cloud-ready **Supabase PostgreSQL / SQLite Dual Storage**, and complete **Light & Dark Theme Styling**.
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
+[![React 18](https://img.shields.io/badge/Frontend-React_18_%2B_Vite-61DAFB.svg)](https://react.dev/)
+[![Database](https://img.shields.io/badge/Database-Supabase_PostgreSQL_%2F_SQLite-3ECF8E.svg)](https://supabase.com/)
+[![Machine Learning](https://img.shields.io/badge/ML-XGBoost_%2B_SHAP-FF6600.svg)](https://xgboost.readthedocs.io/)
+[![Zero-Trust](https://img.shields.io/badge/Security-Zero--Trust_Anti--Fraud-red.svg)](#-zero-trust-anti-fraud--verification-engine)
 
 ---
 
-## Access Credentials
+## 📑 Table of Contents
+- [Overview](#-overview)
+- [System Architecture](#-system-architecture)
+- [All Recent Upgrades & Capabilities](#-all-recent-upgrades--capabilities)
+- [Testing & Demo Credentials](#-testing--demo-credentials)
+- [Zero-Trust Anti-Fraud & Verification Engine](#-zero-trust-anti-fraud--verification-engine)
+- [Application Portals & Route Guide](#-application-portals--route-guide)
+- [Tech Stack](#-tech-stack)
+- [Local Setup & Quickstart](#-local-setup--quickstart)
+- [Automated Verification Suite](#-automated-verification-suite)
+- [Core REST API Reference](#-core-rest-api-reference)
 
-Public national project data, portfolios, maps, and intelligence remain accessible to guest visitors without logging in. Specialized management portals require role authentication:
+---
 
-### 1. Oversight Administrator (Director General / MoSPI / PMG)
-- **Portal URL**: `/admin` or `/login?tab=admin`
-- **Username**: `admin`
-- **Password**: `admin123`
-- **Identity**: `ADM-DG-01` — Director General (Project Monitoring Group, MoSPI)
-- **Capabilities**:
-  - Full infrastructure portfolio oversight and critical risk auditing
-  - Contractor project assignment across states and sectors
-  - Direct registration of new national capital projects
-  - Dynamic hexagonal Geofence Lamina specification and GPS radius configuration
-  - Comprehensive photo fraud and audit trail verification
+## 🔍 Overview
 
-### 2. General Contractor Logins (Infrastructure EPCs)
-- **Portal URL**: `/contractor` or `/login?tab=contractor`
-- **Password**: `contractor123` *(applies to all contractor profiles)*
+**Nirman-AI (Paimana)** is an enterprise-grade **Infrastructure Oversight Co-Pilot** purpose-built to eliminate cost and time overruns in India's mega-infrastructure portfolio (roads, railways, metro, energy, water, and urban development). 
 
-| Contractor Company | Contractor ID | Password | Key Assigned Projects | Primary States |
+Grounding project forecasts in real **Ministry of Statistics and Programme Implementation (MoSPI)** monthly datasets, Nirman-AI combines **XGBoost machine learning**, **SHAP explainability**, **high-precision geospatial geofencing**, and a **Zero-Trust Anti-Fraud Engine** with **Maker-Checker dual governance** to ensure public funds are spent transparently and infrastructure milestones are verified with mathematical certainty.
+
+---
+
+## 🚀 All Recent Upgrades & Capabilities
+
+Over recent releases, Nirman-AI has evolved from a predictive dashboard into a mission-critical, enterprise infrastructure co-pilot. Here is the full breakdown of recent upgrades:
+
+### 1. 🛡️ Zero-Trust Staging & Anti-Fraud Engine ([`fraud_detector.py`](file:///home/hridyansh/NirmanAi/fraud_detector.py))
+- **Freeze on Premature State Mutation**: Submissions uploaded by contractors enter staged review with `counts_towards_progress = 0`. No project statistics or completion metrics mutate until formal administrative sign-off.
+- **Cross-Project Perceptual Duplicate Image Matching**: Uses 64-bit DCT perceptual hashing (`imagehash.phash`) across all historical submissions nationwide. Any recycled or reused photo from another project or earlier milestone is flagged (`RECYCLED_PHOTO_CROSS_PROJECT`, Hamming distance $\le 6$).
+- **Progress Velocity Spike Detection**: Measures progress velocity ($\Delta P / \Delta T$) against approved project baselines. Flags mathematically impossible jumps (`EXTREME_VELOCITY_JUMP` $> 30\%$ leap, or `IMPOSSIBLE_VELOCITY_SPIKE` $> 15\%$ within 14 days).
+- **Physical-to-Financial Expenditure Decoupling**: Detects disproportionate expenditure claims where large capital outlay is claimed with zero or negative milestone advancement.
+- **Multi-Modal Digital Forensics**: Scans photos for Error-Level Analysis (ELA) recompression artifacts, stale capture dates ($> 30$ days), and client device vs. EXIF GPS telemetry mismatches ($> 500\text{m}$).
+
+### 2. ⚖️ Maker-Checker Dual-Control Governance ("4-Eyes Principle")
+- **Field Inspector (Sub-Admin) Scope**: Sub-Admins can clear routine, low-risk field audits.
+- **Mandatory Escalation**: Any audit with **Fraud Risk Score $\ge 25\%$**, claimed expenditure $> ₹50\text{ Lakhs}$, or progress jump $> 5\%$ requires Sub-Admin field recommendation (`subadmin_approved`, `counts = 0`) followed by Main Admin (Director General) counter-signature.
+- **Mandatory Statutory Justification**: Main Admin approval of high-anomaly claims ($\text{Fraud Score} \ge 50\%$) is strictly blocked by the API unless a substantive justification note ($\ge 20$ characters) is provided.
+
+### 3. 👥 Hierarchical Multi-Role Authentication
+- **Main Admin (Director General)**: Full portfolio oversight, statutory counter-signing, contractor assignment, and geofence boundary calibration.
+- **Sub-Admin (Field Inspector)**: On-site audit inspections, routine approvals, and Maker-Checker field recommendations.
+- **EPC Contractor**: Package-specific camera uploads, live GPS telemetry capture, and zero-trust submission tracking.
+- **Public / Guest Access**: Open access to national infrastructure maps, macro state analytics, and AI predictive simulations without requiring login.
+
+### 4. 🗄️ Hybrid Cloud / Local Database Engine ([`db_manager.py`](file:///home/hridyansh/NirmanAi/db_manager.py))
+- Transparent dual routing between **Supabase PostgreSQL** (connection-pooled) and local **SQLite** fallbacks (`project_monitoring.db`, `contractors_admin.db`, `reports_photos.db`).
+- SQL translation layer seamlessly converts dialect specifics (upserts with `ON CONFLICT`, `SERIAL PRIMARY KEY`, and parameter handling).
+
+### 5. 🗺️ Advanced Geospatial & Lamina Intelligence
+- **Hexagonal Geofence Lamina**: Precision ray-casting point-in-polygon algorithm calculating containment within a 6-vertex WGS-84 perimeter around construction sites.
+- **Interactive Leaflet Mapping**: State boundary centroids, clustering, project risk dots, and direct routing to isolated project timelines (`/projects/:id`).
+
+### 6. 🎨 GovTech UI/UX & Dual-Theme Engine
+- **Dark & Light Theme**: Universal theme toggle persisted via `localStorage`, featuring sleek obsidian dark tones and crisp enterprise light palettes.
+- **Fraud Risk Meter Badge**: Interactive color-coded pills (`HIGH RISK`, `MED RISK`, `LOW RISK`) with an Anomaly Breakdown modal displaying exact forensic drivers.
+- **Real-Time Notifications**: Integrated `NotificationCenter` tracking approvals, escalations, and geofence warnings.
+- **Official Branding**: Integrated national emblems, official Paimana iconography, and Paimana favicon assets.
+
+---
+
+## 🔑 Testing & Demo Credentials
+
+Use the following credentials to test different permission tiers and workflows across the platform.
+
+### 1. Oversight Administrators (MoSPI / PMG / Field Inspectors)
+> Login via: **`/login?tab=admin`** or **`/admin`**
+
+| Role / Identity | Username | Password | Admin Level | Authority & Scope |
+|---|---|---|---|---|
+| **Director General (Main Admin)** | `admin` | `admin123` | `main` | Full national oversight, statutory counter-signature on escalated audits, contractor assignment, geofence configuration. |
+| **Er. Arvind Nair (Sub-Admin / Field Inspector)** | `subadmin_test` | `password123` | `sub` | Field inspection, routine audit clearance, staged recommendations for high-risk submissions on assigned packages. |
+
+### 2. General EPC Contractors
+> Login via: **`/login?tab=contractor`** or **`/contractor`**  
+> *(You can either select the contractor company from the login dropdown or enter their Contractor ID)*
+
+| Contractor EPC Company | Contractor ID | Password | Key Assigned Projects | Primary Operating States |
 |---|---|---|---|---|
 | **Larsen & Toubro Heavy Civil Infra** | `CNT-LT-01` | `contractor123` | `PRJ-0001`, `PRJ-0004`, `PRJ-0015` | Maharashtra, Gujarat, Rajasthan |
 | **Afcons Infrastructure Ltd** | `CNT-AF-02` | `contractor123` | `PRJ-0002`, `PRJ-0010`, `PRJ-0018` | Delhi, Uttar Pradesh, Punjab |
 | **Tata Projects Ltd** | `CNT-TP-03` | `contractor123` | `PRJ-0003`, `PRJ-0007`, `PRJ-0022` | Karnataka, Telangana, Tamil Nadu |
 | **Dilip Buildcon Ltd** | `CNT-DB-04` | `contractor123` | `PRJ-0005`, `PRJ-0012`, `PRJ-0030` | Madhya Pradesh, Rajasthan, Bihar |
 | **Megha Engineering & Infra (MEIL)** | `CNT-ME-05` | `contractor123` | `PRJ-0006`, `PRJ-0014`, `PRJ-0028` | Andhra Pradesh, Odisha, Telangana |
+| **Apex Infra Works Pvt Ltd (Test EPC)** | `CNT-TEST-01` | `password123` | Test sandbox package | National |
+
+### 3. Public / Citizen / Auditor Access
+> Direct access via: **`/`** (Dashboard), **`/projects`**, **`/map`**, **`/state-analysis`**, **`/reports`**
+
+- **No login required**.
+- Guest visitors can freely explore project risk scores, cost/time overrun projections, SHAP predictive drivers, and macro state baselines in read-only mode.
 
 ---
 
-## Architecture & System Flow
+## 🛡️ Zero-Trust Anti-Fraud & Verification Engine
+
+The verification pipeline enforces an uncompromising zero-trust lifecycle for every milestone claim:
 
 ```
-raw CSVs (MoSPI-style monthly reports, Feb–Jul)
-      │  parse_*.py
-      ▼
-tidy CSVs ──► generate_synthetic_projects.py ──► synthetic project trajectories
-      │                                              (drift sampled from real
-      │                                               state/sector curves)
-      ▼
-build_database.py ──► Dual Database Engine (Supabase PostgreSQL / SQLite fallback)
-      │               ├── project_monitoring (11 tables: projects, snapshots, features, baselines)
-      │               ├── contractors_admin  (profiles, credentials, assignments, geofences)
-      │               └── reports_photos     (on-site submissions, audits, photo telemetry)
-      ▼
-train_models.py ──► cop_model.json / top_model.json   (XGBoost COP & TOP models)
-      │
-      ▼
-risk_analysis.py ──► model_risk_scores + early_warnings + SHAP figures
-      │
-      ▼
-api.py (FastAPI) ◄── verification_pipeline.py (Geofence Lamina, EXIF, ELA, ImageHash)
-      │          ◄── scoring.py (ScoreEngine: risk score, SHAP drivers, timeline)
-      │          ◄── llm.py (OpenRouter AI Intervention Briefs)
-      ▼
-React Frontend (Vite + Tailwind + Recharts + Leaflet)
-      ├── Public: Dashboard, Projects (/projects/:id), Map (/map), State Analysis, Reports
-      ├── Contractor: Contractor Panel (/contractor) with live GPS camera & Lamina verification
-      └── Admin: Oversight Panel (/admin) with contractor assignments & geofence mapping
+                  CONTRACTOR ON-SITE SUBMISSION
+                                │ (GPS Photo + Progress % + ₹ Claim)
+                                ▼
+               ┌─────────────────────────────────┐
+               │    fraud_detector.py Engine     │
+               │  - Global Phash Cross-Check     │
+               │  - Progress Velocity Anomaly    │
+               │  - Financial-Physical Decouple  │
+               │  - ELA & GPS Telemetry Check    │
+               └────────────────┬────────────────┘
+                                │
+                      Computes Fraud Score (0-100)
+                                │
+                                ▼
+               ┌─────────────────────────────────┐
+               │    STAGED REVIEW (Zero-Trust)   │
+               │   counts_towards_progress = 0   │
+               │  (Active DB metrics unmutated)  │
+               └────────────────┬────────────────┘
+                                │
+         ┌──────────────────────┴──────────────────────┐
+         ▼                                             ▼
+Low Risk (< 25 Score)                        Medium / High Risk
+Routine Field Claim                          Maker-Checker Mandatory
+         │                                             │
+Sub-Admin Directly Approves                  Sub-Admin Inspects & Recommends
+         │                                   (status: subadmin_approved)
+         │                                             │
+         │                                   Main Admin (DG) Counter-Signs
+         │                                   (Requires Written Justification)
+         └──────────────────────┬──────────────────────┘
+                                │
+                                ▼
+               ┌─────────────────────────────────┐
+               │     AUDIT APPROVED & LOCKED     │
+               │   counts_towards_progress = 1   │
+               │  recompute_project_intelligence │
+               └─────────────────────────────────┘
 ```
 
 ---
 
-## Key Features & Recent Enhancements
+## 🧭 Application Portals & Route Guide
 
-### 1. Synthetic Data Accuracy & "Completed" Project Status
-- Projects with physical execution $\ge 100\%$ (`physical_progress_pct >= 100.0`) are automatically identified and mapped to the **`Completed`** status across cards, map views, detail views, and tables.
-- Eliminates false "At Risk" flags for successfully delivered projects while preserving their historical cost variance and completion records.
-
-### 2. Dynamic Theme Switching (Light & Dark Mode)
-- Every page, component, modal dialog, and report table features full dark/light theme adaptation.
-- System preferences and user toggles are persisted in `localStorage`.
-- All modals, overlays, borders, typography, and charts smoothly transition between crisp slate/white surfaces and deep obsidian/ink tones.
-
-### 3. Project Routing & Strict Data Isolation
-- Each project URL (`/projects/:id`) points directly and strictly to its own unique telemetry, snapshot timeline, and SHAP drivers.
-- All report downloads and overview tables link directly to isolated project profiles (`/projects/${project.id}`) rather than generic views.
-
-### 4. Machine Learning Model Performance
-Evaluated via `eval_model.py` on held-out live telemetry:
-- **Cost Overrun Predictor (`cop_model.json`)**:
-  - Accuracy: **0.952** (Exceeds target of 0.93)
-  - Active Monitoring (July Snapshot) Accuracy: **0.963**
-  - ROC AUC: **0.990**
-- **Time Overrun Predictor (`top_model.json`)**:
-  - Active Monitoring Accuracy: **0.957**
-  - Project-level Aggregated Accuracy: **0.963**
-
-### 5. On-Site Contractor Verification Pipeline
-- **Geofence Lamina (`verification_pipeline.py`)**: Uses a ray-casting point-in-polygon algorithm over a 6-vertex WGS-84 polygonal perimeter around construction sites.
-- **EXIF Extraction**: Checks GPS coordinates and capture timestamps against submission time.
-- **Error-Level Analysis (ELA)**: Recompression artifact heuristics detect manipulated or resaved digital images.
-- **Perceptual Hashing (`imagehash`)**: Detects duplicate or repeated photo submissions across reports.
-
-### 6. Hybrid Database Architecture (Supabase PostgreSQL + SQLite)
-- `db_manager.py` transparently routes queries to **Supabase PostgreSQL** via connection pooling when `DATABASE_URL` is set, and falls back to local SQLite databases when offline.
-- Handles PostgreSQL `NUMERIC` types seamlessly with custom `DEC2FLOAT` typecasters.
+| Route Path | Portal Name | Access Level | Primary Features |
+|---|---|---|---|
+| `/` | **National Infrastructure Dashboard** | Public / All | Macro KPI metrics, portfolio risk distribution, early warning list, sector breakdown. |
+| `/projects` | **Project Directory** | Public / All | Searchable and filterable catalog of all national capital projects with overrun risk tags. |
+| `/projects/:id` | **Project Intelligence Detail** | Public / All | Isolated project timeline, S-curves, SHAP risk drivers, photo audit history, and AI briefs. |
+| `/map` | **Geospatial Map View** | Public / All | Interactive national map with risk color-coding, GPS coordinates, and state boundary clusters. |
+| `/state-analysis` | **State Macro Analytics** | Public / Admin | State-by-state infrastructure health, budget variances, and delay trends. |
+| `/reports` | **MoSPI Reports & Exports** | Public / Admin | Filterable baseline reports, CSV export capability, and statutory compliance indicators. |
+| `/intelligence` | **What-If Scenario Simulator** | Public / Admin | Interactive parameter tuning to simulate the effect of budget changes and delays using XGBoost. |
+| `/contractor` | **Contractor On-Site Panel** | Contractor | Package selector, live camera GPS capture, milestone claim submission, staged status banner. |
+| `/admin` | **Oversight Administration** | Admin / Sub-Admin | Audit queue, Fraud Risk Meter, Anomaly Breakdown popover, Maker-Checker review actions, geofence editor, and contractor assignment. |
+| `/login` | **Authentication Gateway** | Public | Unified multi-role login and registration for Contractors and Sub-Admins. |
 
 ---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-| Layer | Technology |
+| Layer | Technologies Used |
 |---|---|
-| **Backend / API** | Python 3.10+, FastAPI, Uvicorn, SQLAlchemy, Psycopg2 |
-| **Databases** | Supabase (PostgreSQL) / SQLite (`project_monitoring.db`, `contractors_admin.db`, `reports_photos.db`) |
+| **Backend & API** | Python 3.10+, FastAPI, Uvicorn, Pydantic, SQLAlchemy, Psycopg2 |
 | **Machine Learning** | XGBoost (`cop_model.json`, `top_model.json`), scikit-learn, SHAP |
-| **Verification** | Pillow (PIL), Piexif, ImageHash, Haversine & Ray-casting Polygon math |
-| **AI Narratives** | OpenRouter API (`qwen/qwen3-reranker-8b` / fallback rule engine) |
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, Recharts, Lucide Icons, Leaflet (React-Leaflet 4) |
+| **Anti-Fraud & Forensics**| ImageHash (`imagehash.phash`), Pillow (PIL), Piexif, Error-Level Analysis (ELA) |
+| **Databases** | Supabase (PostgreSQL 15) with connection pooling / Local SQLite fallback |
+| **Frontend Framework** | React 18, TypeScript, Vite |
+| **Styling & Theme** | Tailwind CSS, Lucide Icons, Universal Dark/Light Theme Engine |
+| **Geospatial & Viz** | Leaflet, React-Leaflet 4, Recharts, Custom Ray-Casting Polygon Algorithms |
+| **AI Narratives** | OpenRouter API (`qwen/qwen3-reranker-8b` / local deterministic rule engine fallback) |
 
 ---
 
-## Setup & Running Locally
+## 💻 Local Setup & Quickstart
 
-### 1. Python Environment
+### 1. Prerequisites
+- Python 3.10 or higher
+- Node.js 18+ & npm
+- Git
+
+### 2. Backend Setup
 ```bash
-# Using uv (recommended)
-uv venv
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
-uv pip install -r requirements.txt
+# Clone the repository
+git clone https://github.com/vipuljoshi0001/NirmanAi.git
+cd NirmanAi
 
-# Or standard pip
+# Create and activate virtual environment
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Environment Configuration (.env)
-Create a `.env` file in the project root (see `.env.example`):
+### 3. Environment Configuration
+Create a `.env` file in the project root:
 ```ini
-# Supabase PostgreSQL connection string (optional; falls back to SQLite if empty)
-DATABASE_URL="postgresql://postgres.xxx:password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
+# Optional: Supabase PostgreSQL connection string (falls back to local SQLite if omitted)
+SUPABASE_DB_URL="postgresql://postgres.xxx:password@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
 
-# Optional OpenRouter key for AI narratives
+# Optional: OpenRouter key for generative AI intervention briefs
 OPENROUTER_API_KEY="sk-or-v1-..."
 OPENROUTER_MODEL="qwen/qwen3-reranker-8b"
 ```
 
-### 3. Start Backend Server
+### 4. Start Backend API
 ```bash
 python api.py
-# Server running at: http://127.0.0.1:8000
+# Backend runs at: http://127.0.0.1:8000
+# OpenAPI Docs at: http://127.0.0.1:8000/docs
 ```
 
-### 4. Start Frontend
+### 5. Frontend Setup & Launch
 ```bash
 cd frontend
 npm install
 npm run dev
-# Dev server running at: http://localhost:5173
+# Frontend runs at: http://localhost:5173
 ```
 
 ---
 
-## Testing & Validation Suite
+## 🧪 Automated Verification Suite
+
+Nirman-AI features a comprehensive suite of automated tests covering machine learning, data pipelines, database synchronization, and anti-fraud governance:
 
 ```bash
-# Run end-to-end database, scoring, and baseline fidelity tests
-python test_end_to_end.py
+# 1. Anti-Fraud & Zero-Trust Verification Test Suite (7 End-to-End Stages)
+python test_fraud_prevention.py
 
-# Run contractor panel, geofence lamina, and photo verification tests
+# 2. Contractor Panel, Geofence Lamina, and EXIF/ELA Photo Verification Tests
 python test_contractor_geofence.py
 
-# Evaluate XGBoost COP and TOP model performance metrics
-python eval_model.py
+# 3. Core Database, Scoring, and Baseline Fidelity Tests
+python test_end_to_end.py
 
-# Test Supabase / Multi-database manager synchronization
+# 4. Multi-Database (Supabase PostgreSQL / SQLite) Synchronization Test
 python test_multi_db.py
+
+# 5. XGBoost Machine Learning Model Evaluation (COP & TOP Accuracy)
+python eval_model.py
 ```
+
+### What `test_fraud_prevention.py` Validates:
+1. **Zero-Trust Staging**: Progress reports enter staged review with `counts_towards_progress = 0` without mutating project records.
+2. **Duplicate Image Detection**: Cross-project and same-project photo reuse flags `RECYCLED_PHOTO_CROSS_PROJECT` ($\text{score} \ge 65\%$).
+3. **Approved Baseline Establishment**: Authoritative sign-off by Main Admin correctly establishes legitimate project progress.
+4. **Velocity Anomaly Detection**: Impossible progress leap ($+57.5\%$) flags `EXTREME_VELOCITY_JUMP`.
+5. **Maker-Checker Escalation**: Sub-Admin approval on high-risk submissions leaves `counts = 0` awaiting Main Admin counter-sign.
+6. **Mandatory Justification Protection**: Approving high-anomaly reports without a substantive justification note ($\ge 20$ chars) is blocked with HTTP 400.
+7. **Enriched Audit Telemetry**: Audit endpoint delivers complete biometric, telemetric, and perceptual hash metadata.
 
 ---
 
-## Key API Endpoints
+## 📡 Core REST API Reference
 
-| Method | Path | Description | Access |
+| Method | Endpoint | Description | Permitted Roles |
 |---|---|---|---|
-| `POST` | `/api/auth/login` | Authenticate as Contractor or Admin | Public |
-| `GET` | `/api/health` | Healthcheck and active database status | Public |
+| `POST` | `/api/auth/login` | Authenticate as Contractor, Sub-Admin, or Main Admin | Public |
+| `POST` | `/api/auth/register` | Register new Contractor or Sub-Admin profile | Public |
+| `GET` | `/api/health` | Healthcheck and active database connectivity status | Public |
 | `GET` | `/api/projects` | List projects with status, cost, and physical progress | Public |
 | `GET` | `/api/projects?map=true` | Map feed with deterministic GPS coordinates | Public |
-| `GET` | `/api/projects/{id}` | Comprehensive project detail, SHAP drivers & risk score | Public |
+| `GET` | `/api/projects/{id}` | Detailed project telemetry, SHAP drivers & risk score | Public |
 | `GET` | `/api/contractors/{id}/projects` | Retrieve assigned packages and active geofences | Contractor |
 | `POST` | `/api/contractor/submit-progress`| Submit on-site photo report with GPS coordinates | Contractor |
-| `GET` | `/api/admin/audits` | View photo audit logs, ELA scores, and geofence checks | Admin |
-| `POST` | `/api/admin/geofence` | Update center coordinates and radius for a project site | Admin |
-| `POST` | `/api/admin/assign-contractor` | Assign an EPC contractor to a specific package | Admin |
+| `GET` | `/api/admin/audits` | View audit logs, fraud scores, and anomaly flags | Admin / Sub-Admin |
+| `POST` | `/api/admin/audits/{id}/review` | Maker-Checker audit review (Approve / Reject) | Admin / Sub-Admin |
+| `POST` | `/api/admin/geofence` | Update center coordinates and radius for a project site | Main Admin |
+| `POST` | `/api/admin/assign-contractor` | Assign an EPC contractor to a specific package | Main Admin |
 | `POST` | `/api/predict` | Run hypothetical what-if scenario through ML models | Public |
 | `POST` | `/api/llm/explain` | Generate plain-English AI intervention briefs | Public |
+
+---
+
+## 🏛️ Governance & Compliance
+
+Nirman-AI is engineered to align with the oversight principles of the **Ministry of Statistics and Programme Implementation (MoSPI)**, the **PM GatiShakti National Master Plan**, and standard Central Vigilance Commission (CVC) infrastructure guidelines for public procurement and milestone verification.
