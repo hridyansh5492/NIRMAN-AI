@@ -41,6 +41,7 @@ import llm
 import mock_data
 import scoring
 import verification_pipeline as verification
+import fraud_detector
 
 app = FastAPI(title="Infrastructure Oversight Co-Pilot API")
 app.add_middleware(
@@ -1732,38 +1733,72 @@ async def contractor_submit_progress(
     with target.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
 
+    # 1. Fetch known historical hashes across all projects for duplicate detection
+    hist_records = fraud_detector.get_all_historical_hashes()
+    known_hashes = [r["photo_hash"] for r in hist_records if r.get("photo_hash")]
+
     result = verification.verify_image(
         target,
         project_lat=geofence["center_lat"],
         project_lng=geofence["center_lng"],
         boundary_polygon=geofence["boundary_lamina"],
         max_distance_km=geofence.get("radius_km", 3.5),
+        duplicate_hashes=known_hashes,
         client_lat=gps_lat,
         client_lng=gps_lng,
         captured_at=captured_at,
     )
 
-    is_inside = (result["status"] == "accepted")
-    counts_towards_progress = 1 if is_inside else 0
+    # 2. Comprehensive Multi-Factor Fraud & Anomaly Evaluation
+    fraud_eval = fraud_detector.evaluate_submission(
+        image_path=target,
+        project_id=project_id,
+        contractor_id=contractor_id,
+        physical_progress_pct=physical_progress_pct,
+        financial_expenditure_cr=financial_expenditure_cr,
+        device_lat=gps_lat,
+        device_lng=gps_lng,
+        site_center_lat=geofence["center_lat"],
+        site_center_lng=geofence["center_lng"],
+        max_geofence_km=geofence.get("radius_km", 3.5),
+        captured_at=captured_at,
+    )
+    result["fraud_evaluation"] = fraud_eval
+    photo_hash = fraud_eval.get("photo_hash") or result.get("checks", {}).get("perceptual_hash")
 
-    ai_intelligence = None
-    updated_progress = None
-    if is_inside and physical_progress_pct is not None:
-        ai_intelligence = recompute_project_intelligence(
-            project_id=project_id,
-            physical_progress_pct=physical_progress_pct,
-            financial_expenditure_cr=financial_expenditure_cr,
-            notes=notes or "",
-        )
-        updated_progress = physical_progress_pct
+    geofence_check = result.get("checks", {}).get("geofence", {})
+    lamina_check = result.get("checks", {}).get("geofence_lamina", {})
+    is_inside = bool(geofence_check.get("within_limit", True) and lamina_check.get("inside", True))
+
+    # Initial zero-trust verification status
+    if not is_inside or result.get("rejection_reason") == "geofence":
+        init_status = "rejected_geofence"
+    elif result["status"] == "rejected" or fraud_eval["risk_level"] == "HIGH":
+        init_status = "flagged_anomaly"
+    else:
+        init_status = "pending_review"
+
+    # ZERO-TRUST POLICY:
+    # All submissions enter staged review. Progress is NEVER credited until formal audit approval!
+    counts_towards_progress = 0
+
+    staged_intelligence = {
+        "staged": True,
+        "submitted_progress_pct": physical_progress_pct,
+        "claimed_expenditure_cr": financial_expenditure_cr,
+        "fraud_score": fraud_eval["fraud_score"],
+        "risk_level": fraud_eval["risk_level"],
+        "requires_main_admin_approval": fraud_eval["requires_main_admin_approval"],
+        "evaluated_at": result["submitted_at"],
+    }
 
     # Persist in dedicated reports_photos.db
     conn_rp = db_manager.get_reports_photos_conn()
     try:
         conn_rp.execute("""
         INSERT INTO contractor_progress_reports
-        (submission_id, project_id, contractor_id, physical_progress_pct, financial_expenditure_cr, notes, photo_url, gps_lat, gps_lng, inside_geofence, verification_status, counts_towards_progress, submitted_at, details_json, ai_intelligence_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (submission_id, project_id, contractor_id, physical_progress_pct, financial_expenditure_cr, notes, photo_url, gps_lat, gps_lng, inside_geofence, verification_status, counts_towards_progress, submitted_at, details_json, ai_intelligence_json, photo_hash, fraud_score, fraud_flags_json, requires_main_admin_approval)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             sub_id, project_id, contractor_id,
             physical_progress_pct, financial_expenditure_cr, notes,
@@ -1771,11 +1806,15 @@ async def contractor_submit_progress(
             result.get("gps", {}).get("lat") if result.get("gps") else gps_lat,
             result.get("gps", {}).get("lng") if result.get("gps") else gps_lng,
             1 if is_inside else 0,
-            result["status"],
+            init_status,
             counts_towards_progress,
             result["submitted_at"],
             json.dumps(result),
-            json.dumps(ai_intelligence) if ai_intelligence else None,
+            json.dumps(staged_intelligence),
+            photo_hash,
+            fraud_eval["fraud_score"],
+            json.dumps(fraud_eval["flags"]),
+            1 if fraud_eval["requires_main_admin_approval"] else 0,
         ))
         conn_rp.execute("""
         INSERT INTO verification_records
@@ -1789,7 +1828,7 @@ async def contractor_submit_progress(
             result.get("gps", {}).get("lng") if result.get("gps") else None,
             result.get("distance_km", 0.0) * 1000 if result.get("distance_km") else 0.0,
             json.dumps(result),
-            result["status"],
+            init_status,
             result["submitted_at"],
         ))
         file_size = target.stat().st_size if target.exists() else 0
@@ -1808,8 +1847,8 @@ async def contractor_submit_progress(
         with db_manager.get_core_conn() as c_core:
             c_core.execute("""
             INSERT OR REPLACE INTO contractor_progress_reports
-            (submission_id, project_id, contractor_id, physical_progress_pct, financial_expenditure_cr, notes, photo_url, gps_lat, gps_lng, inside_geofence, verification_status, counts_towards_progress, submitted_at, details_json, ai_intelligence_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (submission_id, project_id, contractor_id, physical_progress_pct, financial_expenditure_cr, notes, photo_url, gps_lat, gps_lng, inside_geofence, verification_status, counts_towards_progress, submitted_at, details_json, ai_intelligence_json, photo_hash, fraud_score, fraud_flags_json, requires_main_admin_approval)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 sub_id, project_id, contractor_id,
                 physical_progress_pct, financial_expenditure_cr, notes,
@@ -1817,11 +1856,15 @@ async def contractor_submit_progress(
                 result.get("gps", {}).get("lat") if result.get("gps") else gps_lat,
                 result.get("gps", {}).get("lng") if result.get("gps") else gps_lng,
                 1 if is_inside else 0,
-                result["status"],
+                init_status,
                 counts_towards_progress,
                 result["submitted_at"],
                 json.dumps(result),
-                json.dumps(ai_intelligence) if ai_intelligence else None,
+                json.dumps(staged_intelligence),
+                photo_hash,
+                fraud_eval["fraud_score"],
+                json.dumps(fraud_eval["flags"]),
+                1 if fraud_eval["requires_main_admin_approval"] else 0,
             ))
             c_core.commit()
     except Exception:
@@ -1829,27 +1872,34 @@ async def contractor_submit_progress(
 
     dist_val = result.get("distance_km")
     dist_str = f"{dist_val:.2f} km" if dist_val is not None else "on-site"
-    msg = (
-        f"Verified inside construction area ({dist_str} to site center). Progress successfully credited to project!"
-        if is_inside
-        else f"GEOFENCE VIOLATION: Photo coordinates fall outside the designated construction area lamina. This report does NOT count!"
-    )
+    if not is_inside:
+        msg = f"GEOFENCE VIOLATION: Photo coordinates fall outside designated construction area lamina ({dist_str}). Submission rejected."
+    elif fraud_eval["risk_level"] == "HIGH":
+        msg = f"Submission Staged with ANOMALY ALERT (Fraud Risk: {fraud_eval['fraud_score']}%). Flagged for mandatory Main Administrator audit before progress can be credited."
+    elif fraud_eval["requires_main_admin_approval"]:
+        msg = f"Verified on-site ({dist_str} to site center). Staged for Sub-Admin inspection and Main Admin Maker-Checker counter-signature."
+    else:
+        msg = f"Verified on-site ({dist_str} to site center). Submission staged and queued for statutory audit approval."
 
     return {
         "submission_id": sub_id,
         "project_id": project_id,
         "contractor_id": contractor_id,
-        "status": result["status"],
-        "verification_status": result["status"],
-        "counts": bool(counts_towards_progress),
-        "counts_towards_progress": bool(counts_towards_progress),
+        "status": init_status,
+        "verification_status": init_status,
+        "counts": False,
+        "counts_towards_progress": False,
         "inside_geofence": is_inside,
         "message": msg,
         "verification": result,
+        "fraud_score": fraud_eval["fraud_score"],
+        "risk_level": fraud_eval["risk_level"],
+        "fraud_flags": fraud_eval["flags"],
+        "requires_main_admin_approval": fraud_eval["requires_main_admin_approval"],
         "photo_url": f"/uploads/{safe_name}",
-        "physical_progress_pct": updated_progress if updated_progress is not None else physical_progress_pct,
+        "physical_progress_pct": physical_progress_pct,
         "geofence": geofence,
-        "ai_intelligence": ai_intelligence,
+        "ai_intelligence": staged_intelligence,
     }
 
 
@@ -2029,6 +2079,17 @@ def admin_audits(limit: int = 100, contractor_id: Optional[str] = None):
                 rep["company_name"] = cid
                 rep["contact_person"] = ""
 
+            flags_val = rep.get("fraud_flags_json")
+            if flags_val and isinstance(flags_val, str):
+                try:
+                    rep["fraud_flags"] = json.loads(flags_val)
+                except Exception:
+                    rep["fraud_flags"] = []
+            elif isinstance(flags_val, list):
+                rep["fraud_flags"] = flags_val
+            else:
+                rep["fraud_flags"] = []
+
         return reports
     finally:
         conn_rp.close()
@@ -2057,12 +2118,20 @@ def review_audit(submission_id: str, req: AuditReviewRequest):
     conn_rp = db_manager.get_reports_photos_conn()
     try:
         cur = conn_rp.cursor()
-        cur.execute("SELECT id, project_id, physical_progress_pct, details_json, verification_status FROM contractor_progress_reports WHERE submission_id = ?", (submission_id,))
+        cur.execute("""
+        SELECT id, project_id, physical_progress_pct, financial_expenditure_cr, notes, details_json, verification_status, fraud_score, requires_main_admin_approval
+        FROM contractor_progress_reports WHERE submission_id = ?
+        """, (submission_id,))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail=f"Submission {submission_id} not found")
 
-        rep_id, project_id, phys_pct, details_str, current_verif_status = row
+        rep_id, project_id, phys_pct, fin_exp_cr, sub_notes, details_str, current_verif_status, fraud_sc, req_main_adm = row
+        fraud_sc = float(fraud_sc or 0.0)
+        req_main_adm = bool(req_main_adm)
+        phys_pct = float(phys_pct) if phys_pct is not None else 0.0
+        fin_exp_cr = float(fin_exp_cr) if fin_exp_cr is not None else 0.0
+
         details = {}
         try:
             if details_str:
@@ -2074,29 +2143,69 @@ def review_audit(submission_id: str, req: AuditReviewRequest):
 
         if reviewer_role in ("subadmin", "sub_admin"):
             # Sub-admin review
-            stat_val = f"subadmin_{new_status}"
-            counts_val = 1 if new_status == "approved" else 0
+            if new_status == "approved":
+                if req_main_adm or fraud_sc >= 25.0:
+                    # High/Medium Risk or High Value: Sub-admin is Maker only; requires Main Admin Checker
+                    stat_val = "subadmin_approved"
+                    counts_val = 0  # Zero-Trust: Not credited until Main Admin signs off!
+                    approval_msg = f"Submission {submission_id} field-verified by Sub-Admin. Escalated for mandatory Main Admin (DG) counter-signature."
+                else:
+                    # Routine Low-Risk: Sub-admin can approve
+                    stat_val = "subadmin_approved"
+                    counts_val = 1
+                    approval_msg = f"Submission {submission_id} approved by Sub-Admin. Progress officially credited to project."
+                    # Recalculate project intelligence
+                    recompute_project_intelligence(project_id, phys_pct, fin_exp_cr, sub_notes or "")
+            else:
+                stat_val = "subadmin_rejected"
+                counts_val = 0
+                approval_msg = f"Submission {submission_id} rejected by Sub-Admin Inspector."
+                # Recalculate baseline progress
+                latest_appr_pct, _, _ = fraud_detector.get_latest_project_progress(project_id)
+                if latest_appr_pct is not None:
+                    recompute_project_intelligence(project_id, latest_appr_pct)
+
             details["subadmin_review"] = {
                 "reviewed_by": req.reviewer_name or "Sub-Admin Inspector",
                 "reviewer_id": req.reviewer_id or "SADM-INSP",
                 "reviewed_at": review_time,
                 "status": new_status,
                 "notes": (req.reviewer_notes or f"Sub-Admin verified as {new_status}").strip(),
+                "requires_main_admin_countersign": bool(req_main_adm or fraud_sc >= 25.0),
             }
         else:
-            # Main admin review / recheck / override
-            if has_subadmin_review:
-                override_justification = (req.override_reason or "").strip()
-                if not override_justification:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Mandatory requirement: A specific reason for overriding the Sub-Admin's verdict must be noted down."
-                    )
-            else:
-                override_justification = (req.override_reason or "").strip()
+            # Main admin review / recheck / final verdict
+            if new_status == "approved":
+                if fraud_sc >= 50.0 or req_main_adm:
+                    override_justification = (req.override_reason or req.reviewer_notes or "").strip()
+                    if len(override_justification) < 20:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Escalated Anomaly Alert (Score {fraud_sc:.0f}%): A substantive justification note (minimum 20 characters) is legally mandatory to approve this flagged submission."
+                        )
+                elif has_subadmin_review and details.get("subadmin_review", {}).get("status") == "rejected":
+                    override_justification = (req.override_reason or req.reviewer_notes or "").strip()
+                    if not override_justification:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Mandatory requirement: A specific reason for overriding the Sub-Admin's rejection must be provided."
+                        )
+                else:
+                    override_justification = (req.override_reason or "").strip()
 
-            stat_val = f"manually_{new_status}"
-            counts_val = 1 if new_status == "approved" else 0
+                stat_val = "manually_approved"
+                counts_val = 1
+                approval_msg = f"Submission {submission_id} officially approved by Main Admin. Progress credited to project."
+                recompute_project_intelligence(project_id, phys_pct, fin_exp_cr, sub_notes or "")
+            else:
+                stat_val = "manually_rejected"
+                counts_val = 0
+                approval_msg = f"Submission {submission_id} rejected by Main Admin."
+                override_justification = (req.override_reason or req.reviewer_notes or "").strip()
+                latest_appr_pct, _, _ = fraud_detector.get_latest_project_progress(project_id)
+                if latest_appr_pct is not None:
+                    recompute_project_intelligence(project_id, latest_appr_pct)
+
             details["main_admin_review"] = {
                 "reviewed_by": req.reviewer_name or "Director General (Admin)",
                 "reviewed_at": review_time,
@@ -2136,7 +2245,7 @@ def review_audit(submission_id: str, req: AuditReviewRequest):
         "counts_towards_progress": counts_val,
         "reviewed_at": review_time,
         "details": details,
-        "message": f"Submission {submission_id} successfully marked as {new_status.upper()} ({'Sub-Admin Review' if reviewer_role in ('subadmin', 'sub_admin') else 'Main Admin Final Verdict'})."
+        "message": approval_msg,
     }
 
 

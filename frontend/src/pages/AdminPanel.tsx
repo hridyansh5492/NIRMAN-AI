@@ -140,10 +140,11 @@ export default function AdminPanel() {
   // Audits Tab state
   const [audits, setAudits] = useState<any[]>([])
   const [loadingAudits, setLoadingAudits] = useState<boolean>(false)
-  const [auditFilter, setAuditFilter] = useState<'all' | 'auto_approved' | 'approved' | 'rejected'>('all')
+  const [auditFilter, setAuditFilter] = useState<'all' | 'pending' | 'flagged' | 'approved' | 'rejected'>('all')
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewMessage, setReviewMessage] = useState<string | null>(null)
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null)
+  const [anomalyModalAudit, setAnomalyModalAudit] = useState<any | null>(null)
 
   // Main Admin Override Modal state
   const [overrideModalAudit, setOverrideModalAudit] = useState<any | null>(null)
@@ -413,18 +414,21 @@ export default function AdminPanel() {
     }
   }
 
-  // Main Admin Review Handler (Standard or opening Override Modal)
+  // Main Admin Review Handler (Standard or opening Override/Justification Modal)
   const handleAdminReviewClick = (audit: any, targetStatus: 'approved' | 'rejected') => {
     const subReview = getSubAdminReviewInfo(audit)
-    if (subReview) {
-      // Sub-Admin already reviewed: Mandatory Override Reason Required!
+    const isHighRisk = (audit.fraud_score && audit.fraud_score >= 60)
+    const isSubAdminRejected = subReview?.status === 'rejected'
+
+    if (isHighRisk || isSubAdminRejected || (subReview && targetStatus === 'rejected')) {
+      // High Anomaly or Reversing Sub-Admin: Mandatory Override / Justification Reason Required!
       setOverrideModalAudit(audit)
       setOverrideVerdict(targetStatus)
       setOverrideReason('')
       setOverrideNotes('')
       setOverrideError(null)
     } else {
-      // Direct Main Admin review
+      // Direct Main Admin review or Secondary Counter-Signature
       executeMainAdminReview(audit.submission_id, targetStatus, undefined, undefined)
     }
   }
@@ -565,17 +569,16 @@ export default function AdminPanel() {
   // Filtered audits
   const filteredAudits = useMemo(() => {
     return audits.filter((a) => {
-      const isInside = a.inside_geofence === 1
-      const vStat = a.verification_status || (isInside ? 'accepted' : 'rejected')
-      const isManuallyApproved = vStat === 'manually_approved'
-      const isManuallyRejected = vStat === 'manually_rejected'
-      const isSubAdminApproved = vStat === 'subadmin_approved'
-      const isSubAdminRejected = vStat === 'subadmin_rejected'
-      const isAutoApproved = (vStat === 'accepted' || vStat === 'auto_approved' || isInside) && !isManuallyApproved && !isManuallyRejected && !isSubAdminApproved && !isSubAdminRejected
+      const vStat = (a.verification_status || '').toLowerCase()
+      const isApproved = vStat === 'manually_approved' || (vStat === 'subadmin_approved' && a.counts_towards_progress === 1)
+      const isRejected = vStat === 'manually_rejected' || vStat === 'subadmin_rejected' || vStat === 'rejected_geofence'
+      const isFlagged = vStat === 'flagged_anomaly' || (a.fraud_score !== undefined && a.fraud_score >= 25)
+      const isPending = !isApproved && !isRejected
 
-      if (auditFilter === 'auto_approved') return isAutoApproved
-      if (auditFilter === 'approved') return isManuallyApproved || isSubAdminApproved || isAutoApproved
-      if (auditFilter === 'rejected') return isManuallyRejected || isSubAdminRejected || (!isInside && !isManuallyApproved && !isSubAdminApproved)
+      if (auditFilter === 'pending') return isPending
+      if (auditFilter === 'flagged') return isFlagged
+      if (auditFilter === 'approved') return isApproved
+      if (auditFilter === 'rejected') return isRejected
       return true
     })
   }, [audits, auditFilter])
@@ -1132,10 +1135,11 @@ export default function AdminPanel() {
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Filter Audits:
               </span>
-              {(['all', 'auto_approved', 'approved', 'rejected'] as const).map((filter) => {
+              {(['all', 'pending', 'flagged', 'approved', 'rejected'] as const).map((filter) => {
                 const labels = {
                   all: 'All Audits',
-                  auto_approved: 'Auto-Approved Only',
+                  pending: 'Pending Review',
+                  flagged: 'Flagged Anomalies ⚠️',
                   approved: 'Approved',
                   rejected: 'Rejected',
                 }
@@ -1145,7 +1149,9 @@ export default function AdminPanel() {
                     onClick={() => setAuditFilter(filter)}
                     className={`px-3 py-1 rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer ${
                       auditFilter === filter
-                        ? isSubAdmin ? 'bg-purple-600 text-white shadow-sm' : 'bg-cyan-600 text-white shadow-sm'
+                        ? filter === 'flagged'
+                          ? 'bg-amber-600 text-white shadow-sm'
+                          : isSubAdmin ? 'bg-purple-600 text-white shadow-sm' : 'bg-cyan-600 text-white shadow-sm'
                         : 'bg-slate-100 dark:bg-ink-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-ink-700'
                     }`}
                   >
@@ -1200,8 +1206,9 @@ export default function AdminPanel() {
                       <th className="px-4 py-3 font-semibold">Photo</th>
                       <th className="px-4 py-3 font-semibold">Submission ID</th>
                       <th className="px-4 py-3 font-semibold">Project & Contractor</th>
-                      <th className="px-4 py-3 font-semibold">Claimed Progress</th>
-                      <th className="px-4 py-3 font-semibold">Status & Reviews</th>
+                      <th className="px-4 py-3 font-semibold">Progress & Claim</th>
+                      <th className="px-4 py-3 font-semibold">Fraud Risk Meter</th>
+                      <th className="px-4 py-3 font-semibold">Status & Dual-Oversight</th>
                       <th className="px-4 py-3 font-semibold">AI Intelligence Brief</th>
                       <th className="px-4 py-3 font-semibold">Submitted At</th>
                       <th className="px-4 py-3 font-semibold text-right">
@@ -1212,15 +1219,19 @@ export default function AdminPanel() {
                   <tbody className="divide-y divide-slate-100 dark:divide-ink-800">
                     {filteredAudits.map((a) => {
                       const isInside = a.inside_geofence === 1
-                      const vStat = a.verification_status || (isInside ? 'accepted' : 'rejected')
+                      const vStat = (a.verification_status || (isInside ? 'pending_review' : 'rejected_geofence')).toLowerCase()
                       const isManuallyApproved = vStat === 'manually_approved'
                       const isManuallyRejected = vStat === 'manually_rejected'
                       const isSubAdminApproved = vStat === 'subadmin_approved'
                       const isSubAdminRejected = vStat === 'subadmin_rejected'
-                      const isAutoApproved = (vStat === 'accepted' || vStat === 'auto_approved' || isInside) && !isManuallyApproved && !isManuallyRejected && !isSubAdminApproved && !isSubAdminRejected
+                      const isBreach = vStat === 'rejected_geofence' || !isInside
+                      const isFlagged = vStat === 'flagged_anomaly' || (a.fraud_score !== undefined && a.fraud_score >= 25)
+                      const isPendingReview = !isManuallyApproved && !isManuallyRejected && !isSubAdminApproved && !isSubAdminRejected && !isBreach
 
                       const subReview = getSubAdminReviewInfo(a)
                       const mainReview = getMainAdminReviewInfo(a)
+                      const fraudScore = a.fraud_score !== undefined ? Number(a.fraud_score) : 0
+                      const requiresCountersign = a.requires_main_admin_approval || fraudScore >= 25.0
 
                       let aiIntel: any = null
                       try {
@@ -1254,40 +1265,85 @@ export default function AdminPanel() {
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">{a.company_name || a.contractor_id}</p>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="font-bold text-brand-orange text-sm">
+                            <span className="font-bold text-brand-orange text-sm block">
                               {a.physical_progress_pct ? `${a.physical_progress_pct}%` : 'N/A'}
                             </span>
+                            {a.financial_expenditure_cr ? (
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                ₹{Number(a.financial_expenditure_cr).toFixed(2)} Cr
+                              </span>
+                            ) : null}
                           </td>
+                          {/* Fraud Risk Meter Badge */}
+                          <td className="px-4 py-3">
+                            <div className="space-y-1">
+                              <button
+                                onClick={() => setAnomalyModalAudit(a)}
+                                title="Click to view detailed anti-fraud evaluation and sensor telemetry"
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                                  fraudScore >= 60
+                                    ? 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                                    : fraudScore >= 25
+                                    ? 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                    : 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                                }`}
+                              >
+                                {fraudScore >= 25 ? <AlertTriangle size={12} /> : <ShieldCheck size={12} />}
+                                <span>{fraudScore >= 60 ? 'HIGH RISK' : fraudScore >= 25 ? 'MED RISK' : 'LOW RISK'} ({fraudScore}%)</span>
+                              </button>
+                              {a.fraud_flags && a.fraud_flags.length > 0 && (
+                                <span
+                                  onClick={() => setAnomalyModalAudit(a)}
+                                  className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium underline block cursor-pointer"
+                                >
+                                  {a.fraud_flags.length} anomaly trigger(s)
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          {/* Status & Dual-Oversight Column */}
                           <td className="px-4 py-3 space-y-1">
                             {isManuallyApproved ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                                 <CheckCircle2 size={12} />
-                                DG APPROVED {mainReview?.overrode_subadmin ? '(OVERRODE SUB-ADMIN)' : ''}
+                                DG APPROVED {mainReview?.overrode_subadmin ? '(OVERRODE)' : ''}
                               </span>
                             ) : isManuallyRejected ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
                                 <AlertTriangle size={12} />
-                                DG REJECTED {mainReview?.overrode_subadmin ? '(OVERRODE SUB-ADMIN)' : ''}
+                                DG REJECTED {mainReview?.overrode_subadmin ? '(OVERRODE)' : ''}
                               </span>
                             ) : isSubAdminApproved ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800">
-                                <CheckCircle2 size={12} />
-                                SUB-ADMIN APPROVED
-                              </span>
+                              a.counts_towards_progress === 1 ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800">
+                                  <CheckCircle2 size={12} />
+                                  SUB-ADMIN APPROVED
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                                  <ShieldCheck size={12} />
+                                  FIELD VERIFIED (AWAITING DG)
+                                </span>
+                              )
                             ) : isSubAdminRejected ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
                                 <AlertTriangle size={12} />
                                 SUB-ADMIN REJECTED
                               </span>
-                            ) : isAutoApproved ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800">
-                                <CheckCircle2 size={12} />
-                                AUTO-APPROVED
-                              </span>
-                            ) : (
+                            ) : isBreach ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
                                 <AlertTriangle size={12} />
                                 GEOFENCE BREACH
+                              </span>
+                            ) : isFlagged ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                <AlertTriangle size={12} />
+                                ANOMALY FLAGGED
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                                <Clock size={12} />
+                                PENDING AUDIT
                               </span>
                             )}
 
@@ -1296,6 +1352,7 @@ export default function AdminPanel() {
                               <div className="text-[10px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 p-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800/40">
                                 <p className="font-semibold">
                                   Sub-Admin ({subReview.reviewed_by}): {subReview.status?.toUpperCase()}
+                                  {subReview.requires_main_admin_countersign && ' • Escalated to DG'}
                                 </p>
                                 {subReview.notes && <p className="italic text-slate-500 dark:text-slate-400 truncate max-w-xs">"{subReview.notes}"</p>}
                               </div>
@@ -1306,7 +1363,7 @@ export default function AdminPanel() {
                               <div className="text-[10px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-1.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
                                 <p className="font-bold flex items-center gap-1">
                                   <MessageSquare size={11} />
-                                  DG Override Reason:
+                                  DG Justification:
                                 </p>
                                 <p className="italic font-medium leading-tight mt-0.5">"{mainReview.override_reason}"</p>
                               </div>
@@ -1314,12 +1371,12 @@ export default function AdminPanel() {
                           </td>
                           <td className="px-4 py-3 max-w-xs">
                             {aiIntel ? (
-                              <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2" title={aiIntel.narrative}>
-                                {aiIntel.narrative}
+                              <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2" title={aiIntel.narrative || JSON.stringify(aiIntel)}>
+                                {aiIntel.narrative || (aiIntel.staged ? `Staged submission (Risk: ${aiIntel.risk_level})` : 'Analysis completed')}
                               </p>
                             ) : (
                               <span className="text-[11px] text-slate-400">
-                                {isInside ? 'Intelligence derived' : 'Report rejected (breach)'}
+                                {isInside ? 'Staged under evaluation' : 'Report rejected (breach)'}
                               </span>
                             )}
                           </td>
@@ -1350,7 +1407,11 @@ export default function AdminPanel() {
                                           : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm active:scale-95'
                                       }`}
                                     >
-                                      {isSubAdminApproved ? 'Verified ✓' : 'Sub-Admin Approve'}
+                                      {isSubAdminApproved
+                                        ? 'Verified ✓'
+                                        : requiresCountersign
+                                        ? 'Recommend to DG'
+                                        : 'Sub-Admin Approve'}
                                     </button>
                                     <button
                                       onClick={() => handleSubAdminReview(a.submission_id, 'rejected')}
@@ -1369,14 +1430,32 @@ export default function AdminPanel() {
                             ) : (
                               // Main Admin (Director General) Actions
                               <div className="flex items-center justify-end gap-1.5">
-                                {subReview ? (
+                                {isSubAdminApproved && a.counts_towards_progress === 0 ? (
+                                  // Maker-Checker Secondary Counter-Signature required!
+                                  <>
+                                    <button
+                                      onClick={() => handleAdminReviewClick(a, 'approved')}
+                                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1 active:scale-95 cursor-pointer"
+                                    >
+                                      <CheckCircle2 size={11} />
+                                      <span>DG Counter-Sign</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleAdminReviewClick(a, 'rejected')}
+                                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm flex items-center gap-1 active:scale-95 cursor-pointer"
+                                    >
+                                      <AlertTriangle size={11} />
+                                      <span>Reject</span>
+                                    </button>
+                                  </>
+                                ) : subReview ? (
                                   // When Sub-Admin already reviewed: Main Admin Upper Hand Override Button
                                   <button
                                     onClick={() => handleAdminReviewClick(a, isSubAdminApproved ? 'rejected' : 'approved')}
                                     className="px-3 py-1 rounded-lg text-[10px] font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-sm flex items-center gap-1 active:scale-95 cursor-pointer"
                                   >
                                     <RotateCcw size={11} />
-                                    <span>Recheck / Override Review</span>
+                                    <span>Recheck / Override</span>
                                   </button>
                                 ) : (
                                   // Standard direct Main Admin actions
@@ -1578,6 +1657,129 @@ export default function AdminPanel() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* Statutory Anti-Fraud & Anomaly Details Modal */}
+          {anomalyModalAudit && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150">
+              <div className="bg-white dark:bg-ink-900 rounded-3xl border border-slate-200 dark:border-ink-800 shadow-2xl max-w-xl w-full p-6 space-y-5 text-left animate-in zoom-in-95 duration-150 my-8">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-ink-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-2 rounded-xl ${
+                      (anomalyModalAudit.fraud_score || 0) >= 60
+                        ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
+                        : (anomalyModalAudit.fraud_score || 0) >= 25
+                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400'
+                        : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      <ShieldCheck size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                        Statutory Anti-Fraud & Forensic Evaluation
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-mono">
+                        Submission #{anomalyModalAudit.submission_id} • Project {anomalyModalAudit.project_id}
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={() => setAnomalyModalAudit(null)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Composite Score Card */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-ink-950 border border-slate-200 dark:border-ink-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                      Composite Anomaly Risk Index:
+                    </span>
+                    <span className={`text-sm font-bold ${
+                      (anomalyModalAudit.fraud_score || 0) >= 60
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : (anomalyModalAudit.fraud_score || 0) >= 25
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {anomalyModalAudit.fraud_score || 0} / 100 ({
+                        (anomalyModalAudit.fraud_score || 0) >= 60 ? 'HIGH RISK' : (anomalyModalAudit.fraud_score || 0) >= 25 ? 'MEDIUM RISK' : 'LOW RISK'
+                      })
+                    </span>
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="w-full h-2.5 rounded-full bg-slate-200 dark:bg-ink-800 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        (anomalyModalAudit.fraud_score || 0) >= 60
+                          ? 'bg-rose-500'
+                          : (anomalyModalAudit.fraud_score || 0) >= 25
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(5, anomalyModalAudit.fraud_score || 0))}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                    <span>Maker-Checker Policy:</span>
+                    <strong className="text-slate-700 dark:text-slate-300">
+                      {anomalyModalAudit.requires_main_admin_approval || (anomalyModalAudit.fraud_score || 0) >= 25
+                        ? '⚠️ Escalated to Main Admin (DG) Sign-Off'
+                        : '✓ Routine Sub-Admin Inspectable'}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Triggered Flags List */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                    Detected Anomaly Signals ({anomalyModalAudit.fraud_flags?.length || 0})
+                  </h4>
+                  {(!anomalyModalAudit.fraud_flags || anomalyModalAudit.fraud_flags.length === 0) ? (
+                    <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                      <span>No anomaly signals detected. Photo EXIF, GPS position, and progress velocity align with statutory baselines.</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {anomalyModalAudit.fraud_flags.map((flag: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-xl border text-xs space-y-1 ${
+                            flag.severity === 'CRITICAL'
+                              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200'
+                              : flag.severity === 'HIGH'
+                              ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200'
+                              : 'bg-slate-50 dark:bg-ink-800 border-slate-200 dark:border-ink-700 text-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold flex items-center gap-1.5">
+                              <AlertTriangle size={13} className="shrink-0" />
+                              {flag.title || flag.code}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider bg-black/10 dark:bg-white/10">
+                              {flag.severity} (+{flag.weight} pts)
+                            </span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed opacity-90">{flag.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Audit Close Button */}
+                <div className="pt-3 border-t border-slate-100 dark:border-ink-800 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setAnomalyModalAudit(null)}
+                    className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition-all cursor-pointer"
+                  >
+                    Close Forensic Record
+                  </button>
+                </div>
               </div>
             </div>
           )}

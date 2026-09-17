@@ -545,9 +545,36 @@ def init_reports_photos_db() -> None:
                 counts_towards_progress INT,
                 submitted_at TEXT NOT NULL,
                 details_json TEXT,
-                ai_intelligence_json TEXT
+                ai_intelligence_json TEXT,
+                photo_hash TEXT,
+                fraud_score NUMERIC DEFAULT 0,
+                fraud_flags_json TEXT,
+                requires_main_admin_approval INT DEFAULT 0
             )
         """)
+
+        # Safe column additions for existing contractor_progress_reports table
+        report_cols = [
+            ("photo_hash", "TEXT"),
+            ("fraud_score", "NUMERIC DEFAULT 0"),
+            ("fraud_flags_json", "TEXT"),
+            ("requires_main_admin_approval", "INT DEFAULT 0"),
+        ]
+        if is_supabase():
+            for col_name, col_type in report_cols:
+                try:
+                    cur.execute(f"ALTER TABLE contractor_progress_reports ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+                except Exception:
+                    pass
+        else:
+            cur.execute("PRAGMA table_info(contractor_progress_reports)")
+            existing = {row[1] for row in cur.fetchall()}
+            for col_name, col_type in report_cols:
+                if col_name not in existing:
+                    try:
+                        cur.execute(f"ALTER TABLE contractor_progress_reports ADD COLUMN {col_name} {col_type}")
+                    except Exception:
+                        pass
 
         # 2. Verification Records table
         cur.execute("""

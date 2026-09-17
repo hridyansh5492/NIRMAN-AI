@@ -1063,22 +1063,29 @@ export default function ContractorPanel() {
               {submitResult && (
                 <div
                   className={`p-5 rounded-2xl border text-xs animate-in zoom-in-95 duration-200 space-y-3 ${
-                    submitResult.counts
-                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-400 text-emerald-900 dark:text-emerald-200'
-                      : 'bg-rose-50 dark:bg-rose-950/50 border-rose-400 text-rose-900 dark:text-rose-200'
+                    submitResult.status === 'rejected_geofence' || !submitResult.inside_geofence
+                      ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-400 text-rose-900 dark:text-rose-200'
+                      : submitResult.risk_level === 'HIGH' || submitResult.status === 'flagged_anomaly'
+                      ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-400 text-amber-900 dark:text-amber-200'
+                      : 'bg-cyan-50 dark:bg-cyan-950/50 border-cyan-400 text-cyan-900 dark:text-cyan-200'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 font-bold text-sm">
-                      {submitResult.counts ? (
-                        <>
-                          <CheckCircle2 className="text-emerald-600 dark:text-emerald-400" size={20} />
-                          <span>Report Verified & Counted On-Site</span>
-                        </>
-                      ) : (
+                      {submitResult.status === 'rejected_geofence' || !submitResult.inside_geofence ? (
                         <>
                           <AlertTriangle className="text-rose-600 dark:text-rose-400" size={20} />
                           <span>Report Rejected: Geofence Enforcement Triggered</span>
+                        </>
+                      ) : submitResult.risk_level === 'HIGH' || submitResult.status === 'flagged_anomaly' ? (
+                        <>
+                          <AlertTriangle className="text-amber-600 dark:text-amber-400" size={20} />
+                          <span>Submission Staged with Anomaly Alert ({submitResult.fraud_score}% Risk)</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="text-cyan-600 dark:text-cyan-400" size={20} />
+                          <span>Submission Successfully Staged for Statutory Audit</span>
                         </>
                       )}
                     </div>
@@ -1090,8 +1097,9 @@ export default function ContractorPanel() {
                   <p className="leading-relaxed text-xs">{submitResult.message}</p>
 
                   <div className="pt-2 border-t border-current/15 flex flex-wrap items-center gap-4 text-[11px]">
-                    <span>Status: <strong className="uppercase">{submitResult.status}</strong></span>
-                    <span>Official Metrics Updated: <strong>{submitResult.counts ? 'YES (Updated to ' + submitResult.physical_progress_pct + '%)' : 'NO (Discarded)'}</strong></span>
+                    <span>Verification Status: <strong className="uppercase">{submitResult.status}</strong></span>
+                    <span>Fraud Anomaly Index: <strong>{submitResult.fraud_score !== undefined ? `${submitResult.fraud_score}%` : '0%'}</strong></span>
+                    <span>Official National Metrics: <strong>{submitResult.counts ? 'UPDATED' : 'STAGED (Awaiting Inspector & DG Audit)'}</strong></span>
                   </div>
 
                   {/* Derived AI Intelligence Sub-Card */}
