@@ -207,7 +207,9 @@ export default function ContractorPanel() {
     return isPointInsideLamina(gpsLat, gpsLng, geofence.boundary_lamina)
   }, [geofence, gpsLat, gpsLng])
 
-  const capturePhoto = (useFallback = false) => {
+  const capturePhoto = () => {
+    if (!videoRef.current || !cameraActive || videoRef.current.videoWidth === 0) return
+
     const canvas = document.createElement('canvas')
     const width = 1280
     const height = 720
@@ -216,40 +218,7 @@ export default function ContractorPanel() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    if (!useFallback && videoRef.current && cameraActive && videoRef.current.videoWidth > 0) {
-      ctx.drawImage(videoRef.current, 0, 0, width, height)
-    } else {
-      // Hardware-absent fallback (e.g. desktop dev / VM testing without webcam)
-      const grad = ctx.createLinearGradient(0, 0, width, height)
-      grad.addColorStop(0, '#0f172a')
-      grad.addColorStop(0.5, '#1e293b')
-      grad.addColorStop(1, '#334155')
-      ctx.fillStyle = grad
-      ctx.fillRect(0, 0, width, height)
-
-      // Perspective grid lines
-      ctx.strokeStyle = '#38bdf8'
-      ctx.lineWidth = 1.5
-      for (let i = 0; i < width; i += 160) {
-        ctx.beginPath()
-        ctx.moveTo(i, 0)
-        ctx.lineTo(i, height)
-        ctx.stroke()
-      }
-      for (let j = 0; j < height; j += 120) {
-        ctx.beginPath()
-        ctx.moveTo(0, j)
-        ctx.lineTo(width, j)
-        ctx.stroke()
-      }
-
-      ctx.fillStyle = '#f8fafc'
-      ctx.font = 'bold 32px sans-serif'
-      ctx.fillText('ON-GROUND CAMERA SENSOR STREAM', 60, 240)
-      ctx.font = '20px monospace'
-      ctx.fillStyle = '#94a3b8'
-      ctx.fillText(`FIELD SENSOR: ${selectedProject?.id || 'FIELD-SYS'} | CAMERA SUBSYSTEM DIRECT`, 60, 285)
-    }
+    ctx.drawImage(videoRef.current, 0, 0, width, height)
 
     // Watermark HUD overlay
     ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'
@@ -821,7 +790,7 @@ export default function ContractorPanel() {
                     <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-3">
                       <button
                         type="button"
-                        onClick={() => capturePhoto(false)}
+                        onClick={capturePhoto}
                         className="px-6 py-2.5 rounded-2xl bg-brand-orange hover:bg-brand-orangeDark text-white text-xs font-bold shadow-xl shadow-amber-500/40 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
                       >
                         <Camera size={16} />
@@ -858,16 +827,6 @@ export default function ContractorPanel() {
                       >
                         <Camera size={15} />
                         <span>{cameraError ? 'Retry Camera Access' : 'Open Device Camera'}</span>
-                      </button>
-
-                      {/* Sensor hardware fallback for development / headless environments */}
-                      <button
-                        type="button"
-                        onClick={() => capturePhoto(true)}
-                        className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-ink-800 hover:bg-slate-200 dark:hover:bg-ink-700 text-slate-700 dark:text-slate-300 text-xs font-semibold cursor-pointer transition-all"
-                        title="Simulate hardware camera shutter (for devices lacking physical webcam)"
-                      >
-                        <span>Sensor Shutter Fallback</span>
                       </button>
                     </div>
                   </div>
