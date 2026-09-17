@@ -18,7 +18,9 @@ const STORAGE_KEY = 'nirman_auth_user'
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
+      // Clear legacy persistent localStorage user so opening the app defaults to non-contractor, non-admin, non-subadmin (guest)
+      localStorage.removeItem(STORAGE_KEY)
+      const saved = sessionStorage.getItem(STORAGE_KEY)
       return saved ? JSON.parse(saved) : null
     } catch {
       return null
@@ -30,12 +32,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     try {
       if (user) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user))
       } else {
-        localStorage.removeItem(STORAGE_KEY)
+        sessionStorage.removeItem(STORAGE_KEY)
       }
     } catch (e) {
-      console.warn('Failed to save auth state to localStorage', e)
+      console.warn('Failed to save auth state to sessionStorage', e)
     }
   }, [user])
 
@@ -48,6 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null)
+    sessionStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_KEY)
   }
 
   const role: UserRole = user ? user.role : 'guest'

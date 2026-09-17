@@ -228,14 +228,14 @@ const spark = (data: number[], color: string) => (
   </ResponsiveContainer>
 )
 
+// Module-level tracker so within a continuous browsing session, page clicks don't repeatedly show the splash, but reloads always play it
+let hasPlayedInitialIntro = false
+
 export default function Dashboard() {
   const navigate = useNavigate()
   
-  // Persistence Check to prevent repeating video splash
-  const [showIntro, setShowIntro] = useState(() => {
-    const hasSeenIntro = sessionStorage.getItem('hasSeenPaimanaIntro')
-    return hasSeenIntro !== 'true'
-  })
+  // Firstly load PAIMANA Animation before Dashboard on initial visit / refresh
+  const [showIntro, setShowIntro] = useState(() => !hasPlayedInitialIntro)
   
   const [animateOut, setAnimateOut] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -409,13 +409,18 @@ export default function Dashboard() {
   useEffect(() => {
     if (!showIntro) return
 
+    setAnimateOut(false)
     if (videoRef.current) {
-      videoRef.current.playbackRate = 2.0
+      videoRef.current.playbackRate = 1.35
+      videoRef.current.muted = true
+      videoRef.current.play().catch((err) => {
+        console.warn('Video playback notice:', err)
+      })
     }
     const fadeTimer = setTimeout(() => setAnimateOut(true), 3000)
     const hideTimer = setTimeout(() => {
       setShowIntro(false)
-      sessionStorage.setItem('hasSeenPaimanaIntro', 'true')
+      hasPlayedInitialIntro = true
     }, 3400)
     
     return () => {
@@ -494,7 +499,33 @@ export default function Dashboard() {
   if (showIntro) {
     return (
       <div className={`fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-ink-950 transition-opacity duration-500 ease-in-out ${animateOut ? 'opacity-0' : 'opacity-100'}`}>
-        <video ref={videoRef} src={introVideo} autoPlay muted playsInline className="w-full h-full object-contain sm:object-cover bg-white dark:bg-ink-950" />
+        <video 
+          ref={videoRef} 
+          src={introVideo} 
+          autoPlay 
+          muted 
+          playsInline 
+          onEnded={() => {
+            setAnimateOut(true)
+            setTimeout(() => {
+              setShowIntro(false)
+              hasPlayedInitialIntro = true
+            }, 300)
+          }}
+          className="w-full h-full object-contain sm:object-cover bg-white dark:bg-ink-950" 
+        />
+        <button
+          onClick={() => {
+            setAnimateOut(true)
+            setTimeout(() => {
+              setShowIntro(false)
+              hasPlayedInitialIntro = true
+            }, 300)
+          }}
+          className="absolute bottom-8 right-8 z-50 px-4 py-2 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white text-xs font-semibold backdrop-blur tracking-wider uppercase transition-all shadow-lg border border-white/20 flex items-center gap-1.5 cursor-pointer"
+        >
+          Skip Intro <span>→</span>
+        </button>
       </div>
     )
   }

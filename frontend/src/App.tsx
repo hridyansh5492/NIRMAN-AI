@@ -13,31 +13,20 @@ import AdminPanel from './pages/AdminPanel'
 import LoginPage from './pages/LoginPage'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
-function RootRoute() {
-  const { role } = useAuth()
-  if (role === 'admin' || role === 'subadmin') {
-    return <Navigate to="/admin" replace />
-  }
-  if (role === 'contractor') {
-    return <Navigate to="/contractor" replace />
-  }
-  return <Dashboard />
-}
-
 function AdminRoute() {
   const { role } = useAuth()
   if (role !== 'admin' && role !== 'subadmin') {
-    return <Navigate to="/" replace />
+    return <Navigate to="/login?tab=admin" replace />
   }
   return <AdminPanel />
 }
 
-function ContractorRestrictedRoute({ children }: { children: React.ReactNode }) {
+function ContractorRoute() {
   const { role } = useAuth()
-  if (role === 'contractor') {
-    return <Navigate to="/contractor" replace />
+  if (role !== 'contractor') {
+    return <Navigate to="/login?tab=contractor" replace />
   }
-  return <>{children}</>
+  return <ContractorPanel />
 }
 
 export default function App() {
@@ -70,37 +59,16 @@ export default function App() {
       <Routes>
         {/* Pass dark mode state down as props so the toggle button can live inside Layout */}
         <Route element={<Layout darkMode={darkMode} setDarkMode={setDarkMode} />}>
-          <Route path="/" element={<RootRoute />} />
+          <Route path="/" element={<Dashboard />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/admin" element={<AdminRoute />} />
+          <Route path="/contractor" element={<ContractorRoute />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />
           <Route path="/map" element={<MapView />} />
-          <Route path="/contractor" element={<ContractorPanel />} />
-          <Route
-            path="/intelligence"
-            element={
-              <ContractorRestrictedRoute>
-                <Intelligence />
-              </ContractorRestrictedRoute>
-            }
-          />
-          <Route
-            path="/state-analysis"
-            element={
-              <ContractorRestrictedRoute>
-                <StateAnalysis />
-              </ContractorRestrictedRoute>
-            }
-          />
-          <Route
-            path="/reports"
-            element={
-              <ContractorRestrictedRoute>
-                <Reports />
-              </ContractorRestrictedRoute>
-            }
-          />
+          <Route path="/intelligence" element={<Intelligence />} />
+          <Route path="/state-analysis" element={<StateAnalysis />} />
+          <Route path="/reports" element={<Reports />} />
         </Route>
       </Routes>
     </AuthProvider>

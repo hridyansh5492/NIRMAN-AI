@@ -74,7 +74,8 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
   const currentNavItems = useMemo(() => {
     if (role === 'admin' || role === 'subadmin') {
       return [
-        { to: '/admin', label: role === 'subadmin' ? 'Sub-Admin Desk' : 'Workspace' },
+        { to: '/', label: 'Dashboard' },
+        { to: '/admin', label: role === 'subadmin' ? 'Sub-Admin Desk' : 'Admin Desk' },
         { to: '/projects', label: 'Projects' },
         { to: '/map', label: 'Project Map' },
         { to: '/intelligence', label: 'Intelligence' },
@@ -84,9 +85,13 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
     }
     if (role === 'contractor') {
       return [
+        { to: '/', label: 'Dashboard' },
+        { to: '/contractor', label: 'Contractor Desk' },
         { to: '/projects', label: 'Projects' },
-        { to: '/map', label: 'Projects Map' },
-        { to: '/contractor', label: 'Submitted Reports' },
+        { to: '/map', label: 'Project Map' },
+        { to: '/intelligence', label: 'Intelligence' },
+        { to: '/state-analysis', label: 'State Analysis' },
+        { to: '/reports', label: 'Reports' },
       ]
     }
     return navItems
@@ -189,7 +194,7 @@ export default function Layout({ darkMode, setDarkMode }: LayoutProps) {
           <div className="flex items-center gap-3 md:gap-6 min-w-0">
             {/* Logo Wrapper Container */}
             <NavLink 
-              to={role === 'admin' ? '/admin' : role === 'contractor' ? '/contractor' : '/'} 
+              to="/" 
               className="flex flex-col items-center justify-center select-none group min-w-[100px] sm:min-w-[150px] lg:min-w-[200px]"
             >
               <img 
