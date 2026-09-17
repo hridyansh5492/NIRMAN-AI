@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Lock,
   ShieldX,
+  ShieldCheck,
   Check,
   X
 } from 'lucide-react'
@@ -49,6 +50,7 @@ export default function ContractorPanel() {
   const [physicalProgress, setPhysicalProgress] = useState<number>(65)
   const [financialExpenditure, setFinancialExpenditure] = useState<number>(120)
   const [notes, setNotes] = useState<string>('')
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   // Determine baseline progress locked to the last approved report or master project baseline
   const lastApprovedProgress = useMemo(() => {
@@ -301,6 +303,7 @@ export default function ContractorPanel() {
   const selectProject = (p: ContractorProject) => {
     setSelectedProject(p)
     setSubmitResult(null)
+    setValidationError(null)
     const pSubs = submissions.filter(
       (s) =>
         s.project_id === p.id &&
@@ -331,23 +334,66 @@ export default function ContractorPanel() {
   // Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setValidationError(null)
+
     if (!selectedProject) {
-      alert('Please select a project first.')
+      const msg = 'Please select an active contract package from the left column first.'
+      setValidationError(msg)
+      alert(msg)
+      return
+    }
+
+    if (physicalProgress === undefined || physicalProgress === null || isNaN(physicalProgress)) {
+      const msg = 'Reported Physical Progress (%) is mandatory.'
+      setValidationError(msg)
+      alert(msg)
       return
     }
 
     if (physicalProgress < lastApprovedProgress) {
-      alert(`Reported physical progress (${physicalProgress}%) cannot be decreased below the last approved report progress (${lastApprovedProgress}%).`)
+      const msg = `Reported physical progress (${physicalProgress}%) cannot be decreased below the last approved report progress (${lastApprovedProgress}%).`
+      setValidationError(msg)
+      alert(msg)
+      return
+    }
+
+    if (physicalProgress > 100) {
+      const msg = 'Reported physical progress cannot exceed 100%.'
+      setValidationError(msg)
+      alert(msg)
+      return
+    }
+
+    if (
+      financialExpenditure === undefined ||
+      financialExpenditure === null ||
+      isNaN(financialExpenditure) ||
+      financialExpenditure <= 0
+    ) {
+      const msg = 'Claimed Expenditure (₹ Cr) is mandatory and must be greater than ₹0 Cr.'
+      setValidationError(msg)
+      alert(msg)
+      return
+    }
+
+    if (!notes || !notes.trim()) {
+      const msg = 'Milestone Details & Site Notes are mandatory. Please provide a detailed description of on-ground work.'
+      setValidationError(msg)
+      alert(msg)
       return
     }
 
     if (locationStatus === 'denied' || gpsLat === null || gpsLng === null) {
-      alert('Location access is denied or GPS is unavailable. Statutory oversight rules require verified on-ground GPS coordinates to submit progress.')
+      const msg = 'Live Device GPS Telemetry is mandatory. Statutory oversight rules require verified on-ground GPS coordinates to submit progress.'
+      setValidationError(msg)
+      alert(msg)
       return
     }
 
     if (!capturedBlob) {
-      alert('Please access the camera and capture an on-ground photo before submitting.')
+      const msg = 'Mandatory On-Ground Camera Photo is required. Please access the camera and capture an on-ground photo before submitting.'
+      setValidationError(msg)
+      alert(msg)
       return
     }
 
@@ -361,7 +407,7 @@ export default function ContractorPanel() {
       formData.append('contractor_id', contractorId)
       formData.append('physical_progress_pct', String(physicalProgress))
       formData.append('financial_expenditure_cr', String(financialExpenditure))
-      formData.append('notes', notes || 'Routine milestone progress update')
+      formData.append('notes', notes.trim())
       formData.append('gps_lat', String(gpsLat))
       formData.append('gps_lng', String(gpsLng))
 
@@ -373,7 +419,9 @@ export default function ContractorPanel() {
       getContractorSubmissions(contractorId).then(setSubmissions)
     } catch (err) {
       console.error('Submission error', err)
-      alert(err instanceof Error ? err.message : 'Submission failed')
+      const errText = err instanceof Error ? err.message : 'Submission failed'
+      setValidationError(errText)
+      alert(errText)
     } finally {
       setSubmitting(false)
     }
@@ -621,12 +669,24 @@ export default function ContractorPanel() {
                 </div>
               </div>
 
+              {/* Mandatory Compliance Protocol Notice */}
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
+                <ShieldCheck className="text-brand-orange shrink-0 mt-0.5" size={16} />
+                <div className="space-y-0.5">
+                  <p className="font-bold uppercase tracking-wider text-[10px]">Statutory Verification Protocol</p>
+                  <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                    Every detail on this report upload page is <strong>strictly mandatory</strong>. Submissions without reported physical progress %, claimed expenditure, milestone site notes, device GPS telemetry, and live camera photo will be rejected.
+                  </p>
+                </div>
+              </div>
+
               {/* Progress Inputs Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Reported Physical Progress (%)
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                      <span>Reported Physical Progress (%)</span>
+                      <span className="text-rose-500 font-bold">*</span>
                     </label>
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
                       <Lock size={11} /> Locked Min: {lastApprovedProgress}%
@@ -640,6 +700,7 @@ export default function ContractorPanel() {
                       step={0.5}
                       value={physicalProgress}
                       onChange={(e) => {
+                        setValidationError(null)
                         const val = parseFloat(e.target.value) || lastApprovedProgress
                         setPhysicalProgress(Math.max(lastApprovedProgress, Math.min(100, val)))
                       }}
@@ -647,11 +708,13 @@ export default function ContractorPanel() {
                     />
                     <input
                       type="number"
+                      required
                       min={lastApprovedProgress}
                       max={100}
                       step={0.1}
                       value={physicalProgress}
                       onChange={(e) => {
+                        setValidationError(null)
                         const val = parseFloat(e.target.value)
                         if (isNaN(val)) {
                           setPhysicalProgress(lastApprovedProgress)
@@ -664,51 +727,86 @@ export default function ContractorPanel() {
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
                     <span>Baseline (Last Approved): <strong className="text-slate-700 dark:text-slate-300 font-mono">{lastApprovedProgress}%</strong></span>
-                    <span>Ceiling: 100%</span>
+                    <span className="text-rose-500 font-medium text-[10px]">Mandatory *</span>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 space-y-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Claimed Expenditure (₹ Cr)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                      <span>Claimed Expenditure (₹ Cr)</span>
+                      <span className="text-rose-500 font-bold">*</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-rose-500 bg-rose-500/10 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">
+                      Mandatory *
+                    </span>
+                  </div>
                   <input
                     type="number"
-                    value={financialExpenditure}
-                    onChange={(e) => setFinancialExpenditure(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm font-semibold border border-slate-200 dark:border-ink-700 rounded-lg bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white"
-                    placeholder="e.g. 150"
+                    required
+                    min={0.01}
+                    step={0.01}
+                    value={financialExpenditure === 0 ? '' : financialExpenditure}
+                    onChange={(e) => {
+                      setValidationError(null)
+                      const val = e.target.value === '' ? 0 : parseFloat(e.target.value)
+                      setFinancialExpenditure(isNaN(val) ? 0 : val)
+                    }}
+                    className="w-full px-3 py-2 text-sm font-semibold border border-slate-200 dark:border-ink-700 rounded-lg bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white outline-none focus:border-brand-orange"
+                    placeholder="Enter claimed billing in ₹ Cr (Mandatory)"
                   />
                   <p className="text-[11px] text-slate-400">
-                    Cumulative billing claimed for this cycle
+                    Cumulative billing claimed for this cycle (Mandatory, must be &gt; 0)
                   </p>
                 </div>
               </div>
 
               {/* Progress Notes */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Milestone Details & Site Notes
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <span>Milestone Details & Site Notes</span>
+                    <span className="text-rose-500 font-bold">*</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-rose-500 bg-rose-500/10 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">
+                    Mandatory *
+                  </span>
+                </div>
                 <textarea
-                  rows={2}
+                  required
+                  rows={3}
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Pier cap casting package-3 completed on schedule. Track laying segment 4 initiated."
+                  onChange={(e) => {
+                    setValidationError(null)
+                    setNotes(e.target.value)
+                  }}
+                  placeholder="Enter detailed milestone progress, completed work items, and on-site observations (Mandatory for statutory audit)..."
                   className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 text-slate-900 dark:text-white outline-none focus:border-brand-orange"
                 />
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Detailed description of work completed on-site during this milestone (Mandatory)</span>
+                  <span className={notes.trim().length > 0 ? 'text-emerald-500 font-medium' : 'text-slate-400'}>
+                    {notes.trim().length} chars
+                  </span>
+                </div>
               </div>
 
               {/* Camera-Only On-Ground Photo Capture (No file upload) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                     <Camera size={14} className="text-brand-orange" />
-                    <span>Mandatory On-Ground Camera Photo</span>
+                    <span>On-Ground Camera Photo Evidence</span>
+                    <span className="text-rose-500 font-bold">*</span>
                   </label>
-                  <span className="text-[11px] font-semibold text-amber-500 bg-amber-500/10 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-500/20">
-                    Live Camera Only • No File Uploads
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-rose-500 bg-rose-500/10 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">
+                      Mandatory *
+                    </span>
+                    <span className="text-[11px] font-semibold text-amber-500 bg-amber-500/10 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-500/20">
+                      Live Camera Only • No File Uploads
+                    </span>
+                  </div>
                 </div>
 
                 {previewUrl ? (
@@ -839,21 +937,27 @@ export default function ContractorPanel() {
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                       <Navigation size={14} className="text-cyan-500" />
-                      Live Device GPS Telemetry
+                      <span>Live Device GPS Telemetry</span>
+                      <span className="text-rose-500 font-bold">*</span>
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Automatic WGS-84 location capture — manual pinpointing or coordinate editing is disabled
+                      Automatic WGS-84 location capture — mandatory GPS geotagging for report verification
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={requestLocation}
-                    className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-100 dark:bg-ink-800 hover:bg-slate-200 dark:hover:bg-ink-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
-                  >
-                    <RefreshCw size={12} className={locationStatus === 'requesting' ? 'animate-spin' : ''} />
-                    <span>Re-acquire GPS</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-rose-500 bg-rose-500/10 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">
+                      Mandatory *
+                    </span>
+                    <button
+                      type="button"
+                      onClick={requestLocation}
+                      className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-100 dark:bg-ink-800 hover:bg-slate-200 dark:hover:bg-ink-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RefreshCw size={12} className={locationStatus === 'requesting' ? 'animate-spin' : ''} />
+                      <span>Re-acquire GPS</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Geolocation Status Alert / Telemetry Readouts */}
@@ -1061,6 +1165,14 @@ export default function ContractorPanel() {
                       )}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* In-form Validation Error Notice */}
+              {validationError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                  <AlertTriangle size={15} className="shrink-0 text-rose-500" />
+                  <span className="font-semibold">{validationError}</span>
                 </div>
               )}
 

@@ -1528,7 +1528,19 @@ async def contractor_submit_progress(
     gps_lng: Optional[float] = Form(None),
     captured_at: Optional[str] = Form(None),
 ):
-    _ensure_verification_schema()
+    if not project_id:
+        raise HTTPException(400, "Project ID is mandatory.")
+    if not contractor_id:
+        raise HTTPException(400, "Contractor ID is mandatory.")
+    if physical_progress_pct is None:
+        raise HTTPException(400, "Physical progress percentage is mandatory.")
+    if financial_expenditure_cr is None or financial_expenditure_cr <= 0:
+        raise HTTPException(400, "Claimed expenditure (₹ Cr) is mandatory and must be greater than 0.")
+    if not notes or not notes.strip():
+        raise HTTPException(400, "Milestone details & site notes are mandatory.")
+    if gps_lat is None or gps_lng is None:
+        raise HTTPException(400, "Device GPS coordinates are mandatory.")
+
     _ensure_verification_schema()
     _ensure_contractor_schema()
 
