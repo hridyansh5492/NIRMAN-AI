@@ -143,3 +143,56 @@ body {
   border-bottom: 1px solid #1c2333;
 }
 
+/* ------------------------------------------------------------------ *
+ * Official Apex Print Stylesheet
+ * ------------------------------------------------------------------ */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #0f1420 !important;
+    font-size: 10.5pt;
+  }
+
+  /* Hide navigation, floating elements, buttons */
+  header,
+  nav,
+  .print-hide,
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  .print-report-container {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #0f1420 !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+    color: #0f1420 !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+    font-weight: 700 !important;
+  }
+}
+
