@@ -401,7 +401,7 @@ export default function StateAnalysis() {
       <div className={`grid grid-cols-1 ${showMap ? 'lg:grid-cols-12' : 'lg:grid-cols-1'} gap-6`}>
         {/* Interactive India Map Panel (Optional side-by-side) */}
         {showMap && (
-          <div className="lg:col-span-5 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-5 shadow-card flex flex-col">
+          <div className="lg:col-span-6 rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-5 shadow-card flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-[11px] font-bold text-cyan-600 dark:text-cyan-400 tracking-wider uppercase">
@@ -414,9 +414,9 @@ export default function StateAnalysis() {
               <span className="text-[11px] text-slate-400">Click state to inspect</span>
             </div>
 
-            <div className="flex-1 rounded-xl bg-slate-950 border border-white/5 min-h-[380px] sm:min-h-[420px] flex items-center justify-center relative overflow-hidden">
-              <span className="absolute top-3 right-3 z-20 flex items-center gap-1.5 text-[10px] font-medium text-emerald-400 bg-slate-900/80 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex-1 rounded-xl bg-[#e0f2fe] dark:bg-[#d0e8fa] border border-[#bae6fd] dark:border-[#a8d4f7] min-h-[520px] sm:min-h-[580px] md:min-h-[640px] flex items-center justify-center relative overflow-hidden">
+              <span className="absolute top-3 right-3 z-20 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-800 bg-white/90 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {selectedState} selected
               </span>
               <IndiaMapSvg
@@ -439,7 +439,7 @@ export default function StateAnalysis() {
         )}
 
         {/* State Detail Telemetry Column */}
-        <div className={`${showMap ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-6`}>
+        <div className={`${showMap ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-6`}>
           {/* Executive State Badge & Banner */}
           <div className="rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-5 shadow-card">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
