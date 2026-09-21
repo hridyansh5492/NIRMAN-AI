@@ -32,19 +32,7 @@ def load_baselines(conn):
     # re-apply schema (replace drops the FK definition)
     conn.executescript(SCHEMA.read_text(encoding="utf-8"))
 
-    # --- state_baselines (real, July snapshot as point-in-time baseline) ---
-    st = pd.read_csv("state_report_tidy.csv")
-    july = st[st["month"] == "July"].copy()
-    state_base = july[["state", "project_count", "cost_overrun_pct"]].rename(
-        columns={"cost_overrun_pct": "avg_cost_overrun_pct"})
-    state_base.to_sql("state_baselines", conn, if_exists="replace", index=False)
-    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
-
-    # --- state_monthly_trends (real, NEW table) ---
-    st[["state", "month", "project_count", "original_cost_cr",
-        "revised_cost_cr", "expenditure_cr", "cost_overrun_pct"]].to_sql(
-        "state_monthly_trends", conn, if_exists="replace", index=False)
-    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+    # --- state_baselines & state_monthly_trends are computed from ground-truth projects in build_state_baselines_from_projects ---
 
     # --- national_monthly_trends (real, NEW table) ---
     nat = pd.read_csv("cost_overview_tidy.csv")
@@ -62,8 +50,6 @@ def load_baselines(conn):
 
     print(f"Loaded REAL tables: "
           f"{'sector_baselines':>22} {len(sec_clean):>5} rows, "
-          f"state_baselines {len(state_base):>5}, "
-          f"state_monthly_trends {len(st):>5}, "
           f"national_monthly_trends {len(nat):>5}, "
           f"progress_buckets {len(phys):>5}")
 
@@ -76,6 +62,40 @@ def load_synthetic(conn):
     snap.to_sql("project_snapshots", conn, if_exists="replace", index=False)
     conn.executescript(SCHEMA.read_text(encoding="utf-8"))
     print(f"Loaded SYNTHETIC: projects {len(proj)}, snapshots {len(snap)}")
+
+
+def build_state_baselines_from_projects(conn):
+    """Compute state baselines and trends directly from project ground truth."""
+    state_base = pd.read_sql("""
+        SELECT 
+            p.state,
+            COUNT(DISTINCT p.project_id) as project_count,
+            ROUND(AVG(s.cost_overrun_to_date_pct), 2) as avg_cost_overrun_pct
+        FROM projects p
+        LEFT JOIN project_snapshots s ON p.project_id = s.project_id AND s.month = 'July'
+        GROUP BY p.state
+        ORDER BY project_count DESC, p.state ASC
+    """, conn)
+    state_base.to_sql("state_baselines", conn, if_exists="replace", index=False)
+    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+
+    state_trends = pd.read_sql("""
+        SELECT 
+            p.state,
+            s.month,
+            COUNT(DISTINCT p.project_id) as project_count,
+            ROUND(SUM(p.sanctioned_cost), 2) as original_cost_cr,
+            ROUND(SUM(s.revised_cost), 2) as revised_cost_cr,
+            ROUND(SUM(s.cumulative_expenditure), 2) as expenditure_cr,
+            ROUND(AVG(s.cost_overrun_to_date_pct), 2) as cost_overrun_pct
+        FROM projects p
+        JOIN project_snapshots s ON p.project_id = s.project_id
+        GROUP BY p.state, s.month
+        ORDER BY p.state ASC
+    """, conn)
+    state_trends.to_sql("state_monthly_trends", conn, if_exists="replace", index=False)
+    conn.executescript(SCHEMA.read_text(encoding="utf-8"))
+    print(f"Derived from projects: state_baselines {len(state_base)} rows, state_monthly_trends {len(state_trends)} rows")
 
 
 def build_features(conn):
@@ -196,6 +216,7 @@ def main():
     conn = connect()
     load_baselines(conn)
     load_synthetic(conn)
+    build_state_baselines_from_projects(conn)
     build_features(conn)
     build_risk_and_warnings(conn)
 

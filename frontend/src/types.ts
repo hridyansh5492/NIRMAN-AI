@@ -148,8 +148,12 @@ export interface StateDetailData {
   projects: number
   investment: string
   expenditure: string
+  rawInvestmentCr?: number
+  rawExpenditureCr?: number
   atRisk: number
+  avgCostOverrun?: number
   timeExposure: string
+  avgScheduleSlip?: number
   sectorMix: { sector: string; count: number; pct: number }[]
   monthlyTrends: {
     month: string
@@ -160,6 +164,7 @@ export interface StateDetailData {
     cost_overrun_pct: number
   }[]
   priorityProjects: Project[]
+  allProjects?: Project[]
 }
 
 export interface StateRecord {

@@ -343,18 +343,9 @@ export async function getSectorBaselines(): Promise<SectorBaselineItem[]> {
 }
 
 export async function getStateBaselines(): Promise<StateBaselineItem[]> {
-  try {
-    const res = await fetch(`${BASE_URL}/api/baselines/states`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
-  } catch (err) {
-    console.warn('Backend unavailable, using fallback state baselines', err)
-    return mockStates.map((s) => ({
-      state: s.name,
-      project_count: s.projects,
-      avg_cost_overrun_pct: s.atRisk,
-    }))
-  }
+  const res = await fetch(`${BASE_URL}/api/baselines/states`)
+  if (!res.ok) throw new Error(`Failed to load state baselines: HTTP ${res.status}`)
+  return await res.json()
 }
 
 export async function getWarnings(limit: number = 30): Promise<EarlyWarning[]> {
@@ -553,33 +544,9 @@ export async function registerNewProject(data: RegisterProjectPayload): Promise<
 }
 
 export async function getStateDetail(stateName: string): Promise<StateDetailData> {
-  try {
-    const res = await fetch(`${BASE_URL}/api/states/${encodeURIComponent(stateName)}`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
-  } catch (err) {
-    console.warn(`Failed to fetch state detail for ${stateName}, using fallback`, err)
-    const fallback = mockStates.find((s) => s.name === stateName) || mockStates[0]
-    return {
-      name: fallback.name,
-      health: fallback.health,
-      projects: fallback.projects,
-      investment: fallback.investment,
-      expenditure: '₹ 4.12L Cr',
-      atRisk: fallback.atRisk,
-      timeExposure: fallback.timeExposure,
-      sectorMix: fallback.sectorMix.map((s) => ({ sector: s.sector, count: 10, pct: s.pct })),
-      monthlyTrends: fallback.velocity.map((v, i) => ({
-        month: ['Feb', 'March', 'April', 'May', 'June', 'July'][i] || `M${i + 1}`,
-        project_count: fallback.projects,
-        original_cost_cr: 100000,
-        revised_cost_cr: 115000,
-        expenditure_cr: v * 1000,
-        cost_overrun_pct: fallback.atRisk,
-      })),
-      priorityProjects: mockProjects.slice(0, 3),
-    }
-  }
+  const res = await fetch(`${BASE_URL}/api/states/${encodeURIComponent(stateName)}`)
+  if (!res.ok) throw new Error(`Failed to load state detail for ${stateName}: HTTP ${res.status}`)
+  return await res.json()
 }
 
 /* ------------------------------------------------------------------ *

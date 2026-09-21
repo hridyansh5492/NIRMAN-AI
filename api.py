@@ -667,6 +667,16 @@ def state_trends():
         "FROM state_monthly_trends")).to_dict("records")
 
 
+def format_cr_amount(cr_val: float) -> str:
+    cr_val = float(cr_val or 0)
+    if cr_val >= 100000:
+        return f"₹ {round(cr_val / 100000, 2):,.2f}L Cr"
+    elif cr_val >= 1000:
+        return f"₹ {round(cr_val, 1):,.1f} Cr"
+    else:
+        return f"₹ {round(cr_val, 1)} Cr"
+
+
 @app.get("/api/states/{state_name}")
 def state_detail(state_name: str):
     # Try exact match first, then case-insensitive, then partial / alias match
@@ -693,30 +703,8 @@ def state_detail(state_name: str):
 
     b_row = base.iloc[0]
     matched_state = str(b_row["state"])
-    total_projects = int(b_row["project_count"])
-    avg_overrun = round(float(b_row["avg_cost_overrun_pct"]), 2)
-    health = max(0, min(100, round(100 - max(0, avg_overrun), 1)))
 
-    trends_df = q(
-        "SELECT month, project_count, original_cost_cr, revised_cost_cr, expenditure_cr, cost_overrun_pct "
-        "FROM state_monthly_trends WHERE state = ?", params=[matched_state])
-    trends_sorted = month_sorted(trends_df).to_dict("records")
-
-    latest_revised = float(trends_df["revised_cost_cr"].iloc[-1]) if not trends_df.empty else 0
-    latest_exp = float(trends_df["expenditure_cr"].iloc[-1]) if not trends_df.empty else 0
-
-    sec_mix_df = q(
-        "SELECT sector, COUNT(*) as cnt FROM projects WHERE state = ? GROUP BY sector", params=[matched_state])
-    total_state_proj = sec_mix_df["cnt"].sum() if not sec_mix_df.empty else 1
-    sector_mix = [
-        {"sector": r["sector"], "count": int(r["cnt"]), "pct": round(int(r["cnt"]) / total_state_proj * 100, 1)}
-        for r in sec_mix_df.to_dict("records")
-    ] if not sec_mix_df.empty else [
-        {"sector": "Roads & Highways", "count": 10, "pct": 40.0},
-        {"sector": "Railways", "count": 8, "pct": 32.0},
-        {"sector": "Power & RE", "count": 7, "pct": 28.0}
-    ]
-
+    # Load all real projects for this state
     proj_query = """
     SELECT 
         p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.completion_date, p.date_of_completion, p.duration_months,
@@ -727,22 +715,51 @@ def state_detail(state_name: str):
     LEFT JOIN project_snapshots s ON p.project_id = s.project_id AND s.month = 'July'
     LEFT JOIN model_risk_scores m ON p.project_id = m.project_id AND m.month = 'July'
     WHERE p.state = ?
-    ORDER BY m.final_risk_score DESC LIMIT 3
+    ORDER BY COALESCE(m.final_risk_score, 0) DESC
     """
     p_df = q(proj_query, params=[matched_state])
-    priority_projects = [format_project_card(r) for r in p_df.to_dict("records")]
+    all_projects = [format_project_card(r) for r in p_df.to_dict("records")]
+    priority_projects = all_projects[:3]
+
+    total_projects = len(all_projects)
+    health = round(sum(p["health"] for p in all_projects) / total_projects) if total_projects > 0 else 80
+
+    trends_df = q(
+        "SELECT month, project_count, original_cost_cr, revised_cost_cr, expenditure_cr, cost_overrun_pct "
+        "FROM state_monthly_trends WHERE state = ?", params=[matched_state])
+    trends_sorted = month_sorted(trends_df).to_dict("records")
+
+    latest_revised = float(trends_df["revised_cost_cr"].iloc[-1]) if not trends_df.empty else float(p_df["revised_cost"].sum() if "revised_cost" in p_df.columns else 0)
+    latest_exp = float(trends_df["expenditure_cr"].iloc[-1]) if not trends_df.empty else float(p_df["cumulative_expenditure"].sum() if "cumulative_expenditure" in p_df.columns else 0)
+    avg_overrun = round(float(trends_df["cost_overrun_pct"].iloc[-1]), 2) if not trends_df.empty else round(float(b_row["avg_cost_overrun_pct"]), 2)
+
+    # Average schedule slip in months directly from project snapshots
+    avg_slip = round(float(p_df["schedule_slip_months"].dropna().mean()), 1) if not p_df.empty and "schedule_slip_months" in p_df.columns and len(p_df["schedule_slip_months"].dropna()) > 0 else 0.0
+
+    sec_mix_df = q(
+        "SELECT sector, COUNT(*) as cnt FROM projects WHERE state = ? GROUP BY sector ORDER BY cnt DESC", params=[matched_state])
+    total_state_proj = sec_mix_df["cnt"].sum() if not sec_mix_df.empty else 1
+    sector_mix = [
+        {"sector": r["sector"], "count": int(r["cnt"]), "pct": float(round(int(r["cnt"]) / total_state_proj * 100, 1))}
+        for r in sec_mix_df.to_dict("records")
+    ]
 
     return {
         "name": matched_state,
         "health": health,
         "projects": total_projects,
-        "investment": f"₹ {round(latest_revised / 1000, 2)}L Cr" if latest_revised > 1000 else f"₹ {round(latest_revised, 1)} Cr",
-        "expenditure": f"₹ {round(latest_exp / 1000, 2)}L Cr" if latest_exp > 1000 else f"₹ {round(latest_exp, 1)} Cr",
-        "atRisk": max(0, avg_overrun),
-        "timeExposure": f"{round(abs(avg_overrun) * 0.8, 1)} months",
+        "investment": format_cr_amount(latest_revised),
+        "expenditure": format_cr_amount(latest_exp),
+        "rawInvestmentCr": round(latest_revised, 2),
+        "rawExpenditureCr": round(latest_exp, 2),
+        "atRisk": avg_overrun,
+        "avgCostOverrun": avg_overrun,
+        "timeExposure": f"{avg_slip} months" if avg_slip > 0 else "0.0 months",
+        "avgScheduleSlip": avg_slip,
         "sectorMix": sector_mix,
         "monthlyTrends": trends_sorted,
         "priorityProjects": priority_projects,
+        "allProjects": all_projects,
     }
 
 

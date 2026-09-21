@@ -24,6 +24,7 @@ import {
   Activity,
   IndianRupee,
   Clock,
+  Filter,
 } from 'lucide-react'
 import { getStateBaselines, getStateDetail } from '../services/api'
 import type { StateBaselineItem, StateDetailData, StateProjectData } from '../types'
@@ -136,6 +137,11 @@ export default function StateAnalysis() {
   const [showMap, setShowMap] = useState<boolean>(true)
   const [hoveredStateId, setHoveredStateId] = useState<string | null>(null)
   const [chartMetric, setChartMetric] = useState<'expenditure' | 'overrun'>('expenditure')
+  const [projectSearchQuery, setProjectSearchQuery] = useState<string>('')
+  const [projectRiskFilter, setProjectRiskFilter] = useState<'ALL' | 'At Risk' | 'Watch' | 'On Track'>('ALL')
+  const [projectSectorFilter, setProjectSectorFilter] = useState<string>('ALL')
+  const [showAllLeaderboard, setShowAllLeaderboard] = useState<boolean>(false)
+  const [leaderboardSearch, setLeaderboardSearch] = useState<string>('')
 
   // Load all 36 state baselines from live SQLite database
   useEffect(() => {
@@ -228,6 +234,49 @@ export default function StateAnalysis() {
       projects: t.project_count,
     }))
   }, [stateDetail])
+
+  // Real projects list for the selected state
+  const availableProjects = useMemo(() => {
+    return stateDetail?.allProjects || stateDetail?.priorityProjects || []
+  }, [stateDetail])
+
+  const atRiskCount = useMemo(
+    () => availableProjects.filter((p) => p.status === 'At Risk').length,
+    [availableProjects]
+  )
+  const watchCount = useMemo(
+    () => availableProjects.filter((p) => p.status === 'Watch').length,
+    [availableProjects]
+  )
+  const onTrackCount = useMemo(
+    () => availableProjects.filter((p) => p.status === 'On Track').length,
+    [availableProjects]
+  )
+
+  const filteredStateProjects = useMemo(() => {
+    return availableProjects.filter((p) => {
+      const q = projectSearchQuery.toLowerCase().trim()
+      const matchSearch =
+        !q ||
+        p.id.toLowerCase().includes(q) ||
+        p.name.toLowerCase().includes(q) ||
+        p.sector.toLowerCase().includes(q) ||
+        (p.ministry && p.ministry.toLowerCase().includes(q))
+
+      const matchRisk = projectRiskFilter === 'ALL' || p.status === projectRiskFilter
+      const matchSector = projectSectorFilter === 'ALL' || p.sector === projectSectorFilter
+
+      return matchSearch && matchRisk && matchSector
+    })
+  }, [availableProjects, projectSearchQuery, projectRiskFilter, projectSectorFilter])
+
+  const filteredLeaderboard = useMemo(() => {
+    let list = stateList
+    if (leaderboardSearch.trim()) {
+      list = list.filter((s) => s.state.toLowerCase().includes(leaderboardSearch.toLowerCase().trim()))
+    }
+    return showAllLeaderboard ? list : list.slice(0, 10)
+  }, [stateList, showAllLeaderboard, leaderboardSearch])
 
   // Health color indicator
   const healthBadge = (health: number) => {
@@ -435,7 +484,7 @@ export default function StateAnalysis() {
                 <p className="font-display text-xl font-bold text-slate-900 dark:text-white mt-1">
                   {loading ? '...' : stateDetail?.investment || '₹ 0 Cr'}
                 </p>
-                <span className="text-[10px] text-slate-400">Revised outlay</span>
+                <span className="text-[10px] text-slate-400">Approved outlay</span>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800/80">
@@ -450,18 +499,18 @@ export default function StateAnalysis() {
                 <p className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">COST VARIANCE</p>
                 <p
                   className={`font-display text-xl font-bold mt-1 ${
-                    (stateDetail?.atRisk ?? 0) > 10
+                    (stateDetail?.avgCostOverrun ?? stateDetail?.atRisk ?? 0) > 10
                       ? 'text-rose-500'
-                      : (stateDetail?.atRisk ?? 0) < 0
+                      : (stateDetail?.avgCostOverrun ?? stateDetail?.atRisk ?? 0) < 0
                       ? 'text-emerald-500'
                       : 'text-slate-900 dark:text-white'
                   }`}
                 >
                   {loading
                     ? '...'
-                    : (stateDetail?.atRisk ?? 0) > 0
-                    ? `+${stateDetail?.atRisk}%`
-                    : `${stateDetail?.atRisk}%`}
+                    : (stateDetail?.avgCostOverrun ?? stateDetail?.atRisk ?? 0) > 0
+                    ? `+${stateDetail?.avgCostOverrun ?? stateDetail?.atRisk}%`
+                    : `${stateDetail?.avgCostOverrun ?? stateDetail?.atRisk}%`}
                 </p>
                 <span className="text-[10px] text-slate-400">Baseline drift</span>
               </div>
@@ -469,7 +518,7 @@ export default function StateAnalysis() {
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-ink-950 border border-slate-100 dark:border-ink-800/80 col-span-2 sm:col-span-1">
                 <p className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">SCHEDULE SLIP</p>
                 <p className="font-display text-xl font-bold text-slate-900 dark:text-white mt-1">
-                  {loading ? '...' : stateDetail?.timeExposure || '0 mo'}
+                  {loading ? '...' : stateDetail?.timeExposure || '0.0 mo'}
                 </p>
                 <span className="text-[10px] text-slate-400">Avg delay exposure</span>
               </div>
@@ -537,7 +586,7 @@ export default function StateAnalysis() {
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(val) =>
-                        chartMetric === 'expenditure' ? `₹${(val / 1000).toFixed(0)}k` : `${val}%`
+                        chartMetric === 'expenditure' ? (val >= 1000 ? `₹${(val / 1000).toFixed(0)}k Cr` : `₹${val} Cr`) : `${val}%`
                       }
                     />
                     <Tooltip
@@ -639,58 +688,170 @@ export default function StateAnalysis() {
         </div>
       </div>
 
-      {/* Priority At-Risk Distressed Projects in Selected State */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Real Projects Directory in Selected State */}
+      <div className="space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400 mb-1">
-              RISK INTELLIGENCE &bull; ML RANKED
-            </p>
-            <h3 className="font-display text-xl font-bold text-slate-900 dark:text-white">
-              Priority Projects in {selectedState}
+            <div className="flex items-center gap-2 mb-1">
+              <span className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse" />
+              <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400 uppercase">
+                GROUND-TRUTH DIRECTORY &bull; {availableProjects.length} MONITORED INITIATIVES
+              </p>
+            </div>
+            <h3 className="font-display text-2xl font-bold text-slate-900 dark:text-white">
+              Projects in {selectedState}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Identified by XGBoost predictive cost overrun and schedule slip algorithms for ministerial oversight.
+              Verified ground progress, capital expenditure velocity, and live XGBoost risk signals for all monitored packages in {selectedState}.
             </p>
           </div>
-          <span className="text-xs font-medium text-slate-400 bg-slate-100 dark:bg-ink-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-ink-800">
-            {stateDetail?.priorityProjects.length ?? 0} High-Priority Signals
-          </span>
+
+          {/* Search & Sector Filters */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative min-w-[200px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder={`Search ${selectedState} projects...`}
+                value={projectSearchQuery}
+                onChange={(e) => setProjectSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-950 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-cyan-500 transition-colors"
+              />
+            </div>
+
+            {stateDetail?.sectorMix && stateDetail.sectorMix.length > 1 && (
+              <select
+                value={projectSectorFilter}
+                onChange={(e) => setProjectSectorFilter(e.target.value)}
+                className="text-xs font-medium rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-950 px-3 py-1.5 text-slate-800 dark:text-slate-200 outline-none focus:border-cyan-500 cursor-pointer"
+              >
+                <option value="ALL">All Sectors ({availableProjects.length})</option>
+                {stateDetail.sectorMix.map((s) => (
+                  <option key={s.sector} value={s.sector}>
+                    {s.sector} ({s.count})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
 
-        {stateDetail?.priorityProjects && stateDetail.priorityProjects.length > 0 ? (
+        {/* Risk Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setProjectRiskFilter('ALL')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              projectRiskFilter === 'ALL'
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-sm'
+                : 'bg-slate-100 dark:bg-ink-900 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-ink-800 border border-slate-200 dark:border-ink-800'
+            }`}
+          >
+            All Projects ({availableProjects.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setProjectRiskFilter('At Risk')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              projectRiskFilter === 'At Risk'
+                ? 'bg-rose-500 text-white shadow-sm'
+                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-500/20'
+            }`}
+          >
+            <AlertTriangle size={12} />
+            At Risk ({atRiskCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setProjectRiskFilter('Watch')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              projectRiskFilter === 'Watch'
+                ? 'bg-amber-500 text-white shadow-sm'
+                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20'
+            }`}
+          >
+            <TrendingUp size={12} />
+            Watch List ({watchCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setProjectRiskFilter('On Track')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              projectRiskFilter === 'On Track'
+                ? 'bg-emerald-500 text-white shadow-sm'
+                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
+            }`}
+          >
+            <CheckCircle2 size={12} />
+            On Track ({onTrackCount})
+          </button>
+        </div>
+
+        {/* Project Cards Grid */}
+        {filteredStateProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {stateDetail.priorityProjects.map((proj) => (
+            {filteredStateProjects.map((proj) => (
               <ProjectCard key={proj.id} project={proj} />
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-emerald-500/30 bg-emerald-500/5 p-8 text-center space-y-2">
-            <CheckCircle2 className="mx-auto text-emerald-500" size={32} />
-            <h4 className="font-display font-semibold text-slate-900 dark:text-white">
-              Zero Critical Interventions Flagged
+          <div className="rounded-2xl border border-dashed border-slate-200 dark:border-ink-800 bg-slate-50/50 dark:bg-ink-950/50 p-8 text-center space-y-3">
+            <Filter className="mx-auto text-slate-400" size={28} />
+            <h4 className="font-display font-semibold text-slate-800 dark:text-slate-200">
+              No Projects Match the Selected Filters
             </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              All monitored projects in {selectedState} are currently executing within their baseline schedule and budget tolerances.
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+              No initiatives in {selectedState} match '{projectSearchQuery || projectRiskFilter}'. Try resetting filters.
             </p>
+            <button
+              onClick={() => {
+                setProjectSearchQuery('')
+                setProjectRiskFilter('ALL')
+                setProjectSectorFilter('ALL')
+              }}
+              className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:underline inline-block"
+            >
+              Reset Filters
+            </button>
           </div>
         )}
       </div>
 
       {/* State Comparative Leaderboard Table */}
       <div className="rounded-2xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-900 p-6 shadow-card space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold tracking-wide text-cyan-600 dark:text-cyan-400 mb-1">
-              SOVEREIGN LEADERBOARD
+              SOVEREIGN LEADERBOARD &bull; 36 JURISDICTIONS
             </p>
             <h3 className="font-display font-semibold text-slate-900 dark:text-white text-lg">
               National Cross-State Benchmark
             </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Comparative implementation velocity, capital delivery, and project distribution across India.
+            </p>
           </div>
-          <span className="text-xs text-slate-400">
-            Click any row to switch active state inspection
-          </span>
+
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Find state..."
+                value={leaderboardSearch}
+                onChange={(e) => setLeaderboardSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-ink-800 bg-slate-50 dark:bg-ink-950 text-slate-900 dark:text-white outline-none focus:border-cyan-500 w-36 sm:w-44"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAllLeaderboard(!showAllLeaderboard)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-ink-800 bg-slate-50 dark:bg-ink-950 hover:bg-slate-100 dark:hover:bg-ink-800 text-slate-700 dark:text-slate-300 transition-colors whitespace-nowrap"
+            >
+              {showAllLeaderboard ? 'Show Top 10' : `Show All (${stateList.length})`}
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -706,7 +867,7 @@ export default function StateAnalysis() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-ink-800/60">
-              {stateList.slice(0, 10).map((st, idx) => {
+              {filteredLeaderboard.map((st, idx) => {
                 const isSelected = selectedState.toLowerCase() === st.state.toLowerCase()
                 const health = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, st.avg_cost_overrun_pct))))
                 return (
