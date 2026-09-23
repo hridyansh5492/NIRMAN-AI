@@ -73,7 +73,7 @@ export const IndiaMapSvg: React.FC<IndiaMapSvgProps> = ({
       return baseColor; // Hovered state reveals its density color
     }
 
-    if (selectedStateId) {
+    if (selectedStateId && selectedStateId.trim() !== '') {
       return '#94a3b8'; // Greyout all other states when one is selected
     }
 
@@ -81,10 +81,10 @@ export const IndiaMapSvg: React.FC<IndiaMapSvgProps> = ({
   };
 
   // Selected state metrics for reference box
-  const selectedStateData = stateDataMap[selectedStateId.toLowerCase()];
+  const selectedStateData = selectedStateId ? stateDataMap[selectedStateId.toLowerCase()] : null;
   const selectedCount = selectedStateData ? selectedStateData.totalProjects : 0;
-  const selectedTier = getDensityTier(selectedCount);
-  const selectedColor = getDensityColor(selectedCount);
+  const selectedTier = selectedStateData ? getDensityTier(selectedCount) : null;
+  const selectedColor = selectedStateData ? getDensityColor(selectedCount) : undefined;
 
   return (
     <div 
@@ -133,13 +133,13 @@ export const IndiaMapSvg: React.FC<IndiaMapSvgProps> = ({
         </div>
       )}
 
-      {/* Main SVG Render Container - Enlarged & elevated to guarantee Kerala & Tamil Nadu are fully visible */}
+      {/* Main SVG Render Container - Scaled to comfortably fit inside geographic-india-map-container without clipping */}
       <svg
         viewBox="0 0 612 696"
         preserveAspectRatio="xMidYMid meet"
-        className="w-full h-full max-w-[580px] max-h-full transition-transform duration-200 ease-out cursor-pointer"
+        className="w-[82%] h-[82%] max-w-[450px] max-h-[500px] transition-transform duration-200 ease-out cursor-pointer"
         style={{
-          transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y - 20}px)`,
+          transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
           transformOrigin: '50% 50%',
           filter: 'drop-shadow(0 4px 14px rgba(0, 75, 135, 0.12))'
         }}
@@ -158,7 +158,7 @@ export const IndiaMapSvg: React.FC<IndiaMapSvgProps> = ({
         <g id="geographic-india-states-layer">
           {indiaMap.locations.map((state: { id: string; name: string; path: string }) => {
             const stateId = state.id.toLowerCase();
-            const isSelected = selectedStateId.toLowerCase() === stateId;
+            const isSelected = selectedStateId ? selectedStateId.toLowerCase() === stateId : false;
             const isHovered = hoveredStateId?.toLowerCase() === stateId;
             const data = stateDataMap[stateId];
             const projectCount = data ? data.totalProjects : 0;
@@ -209,7 +209,7 @@ export const IndiaMapSvg: React.FC<IndiaMapSvgProps> = ({
                 <path
                   d={state.path}
                   fill={fillColor}
-                  fillOpacity={isSelected || isHovered ? 1 : (selectedStateId ? 0.72 : 1)}
+                  fillOpacity={isSelected || isHovered ? 1 : (selectedStateId && selectedStateId.trim() !== '' ? 0.72 : 1)}
                   stroke="#ffffff"
                   strokeWidth={isSelected ? '3' : '1.1'}
                   strokeLinejoin="round"
@@ -225,8 +225,8 @@ export const IndiaMapSvg: React.FC<IndiaMapSvgProps> = ({
         </g>
       </svg>
 
-      {/* Floating Bottom Left Project Density Reference Box (Positioned at bottom of box to guarantee Kerala and Tamil Nadu visibility) */}
-      <div className="absolute bottom-1.5 left-2 sm:bottom-2 sm:left-2.5 z-10 bg-white/95 dark:bg-white/95 backdrop-blur-xs border border-slate-200/90 rounded-lg p-1.5 sm:p-2 shadow-sm text-[10px] sm:text-[10.5px] text-slate-800 space-y-1 font-medium pointer-events-none">
+      {/* Floating Project Density Reference Box - Centered horizontally at bottom on desktop mode */}
+      <div className="absolute bottom-1.5 left-2 sm:bottom-2 sm:left-2.5 md:bottom-2.5 md:left-1/2 md:-translate-x-1/2 z-10 bg-white/95 dark:bg-white/95 backdrop-blur-xs border border-slate-200/90 rounded-lg p-1.5 sm:p-2 shadow-sm text-[10px] sm:text-[10.5px] text-slate-800 space-y-1 md:space-y-0 md:flex md:items-center md:gap-3 font-medium pointer-events-none">
         <div className="flex items-center gap-1.5">
           <span 
             className={`w-2.5 h-2.5 rounded-full bg-[#dc2626] flex-shrink-0 transition-all ${
@@ -259,7 +259,7 @@ export const IndiaMapSvg: React.FC<IndiaMapSvgProps> = ({
         </div>
 
         {selectedStateData && (
-          <div className="pt-1 mt-0.5 border-t border-slate-200 flex items-center justify-between gap-2 text-[9.5px] sm:text-[10px]">
+          <div className="pt-1 mt-0.5 md:pt-0 md:mt-0 border-t md:border-t-0 md:border-l md:pl-2.5 border-slate-200 flex items-center justify-between md:justify-start gap-2 text-[9.5px] sm:text-[10px]">
             <span className="flex items-center gap-1 text-slate-950 font-bold truncate max-w-[125px]">
               <span 
                 className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-1 ring-slate-400"

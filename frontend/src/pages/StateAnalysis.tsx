@@ -130,7 +130,7 @@ const POPULAR_STATES = [
 
 export default function StateAnalysis() {
   const [stateList, setStateList] = useState<StateBaselineItem[]>([])
-  const [selectedState, setSelectedState] = useState<string>('Maharashtra')
+  const [selectedState, setSelectedState] = useState<string | null>(null)
   const [stateDetail, setStateDetail] = useState<StateDetailData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -160,19 +160,19 @@ export default function StateAnalysis() {
     loadStates()
   }, [])
 
-  // Load selected state telemetry & priority projects
+  // Load selected state telemetry & priority projects (or Pan-India overview if none selected)
   useEffect(() => {
     let isMounted = true
     async function fetchState() {
       setLoading(true)
       try {
-        const detail = await getStateDetail(selectedState)
+        const detail = await getStateDetail(selectedState || 'all')
         if (isMounted) {
           setStateDetail(detail)
           setLoading(false)
         }
       } catch (err) {
-        console.error(`Failed to fetch state detail for ${selectedState}`, err)
+        console.error(`Failed to fetch state detail for ${selectedState || 'all'}`, err)
         if (isMounted) setLoading(false)
       }
     }
@@ -190,9 +190,10 @@ export default function StateAnalysis() {
     )
   }, [stateList, searchQuery])
 
-  // Map state ID from selected state name
+  // Map state ID from selected state name (empty if no state selected)
   const currentMapId = useMemo(() => {
-    return STATE_NAME_TO_MAP_ID[selectedState.toLowerCase().trim()] || 'mh'
+    if (!selectedState) return ''
+    return STATE_NAME_TO_MAP_ID[selectedState.toLowerCase().trim()] || ''
   }, [selectedState])
 
   // Generate mapping for IndiaMapSvg density & tooltips
@@ -211,7 +212,7 @@ export default function StateAnalysis() {
     return map
   }, [stateList])
 
-  // Handle map state click
+  // Handle map state click: toggle off if already selected, or select clicked state
   const handleMapSelect = (mapId: string) => {
     const resolvedName = MAP_ID_TO_STATE_NAME[mapId.toLowerCase()]
     if (resolvedName) {
@@ -219,7 +220,12 @@ export default function StateAnalysis() {
       const found = stateList.find(
         (s) => s.state.toLowerCase() === resolvedName.toLowerCase()
       )
-      setSelectedState(found ? found.state : resolvedName)
+      const targetState = found ? found.state : resolvedName
+      if (selectedState && selectedState.toLowerCase() === targetState.toLowerCase()) {
+        setSelectedState(null)
+      } else {
+        setSelectedState(targetState)
+      }
     }
   }
 
@@ -299,7 +305,12 @@ export default function StateAnalysis() {
   }
 
   const currentHealth = stateDetail?.health ?? 85
-  const badge = healthBadge(currentHealth)
+  const badge = !selectedState
+    ? {
+        bg: 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30',
+        label: 'Pan-India Sovereign Baseline',
+      }
+    : healthBadge(currentHealth)
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -360,10 +371,11 @@ export default function StateAnalysis() {
               State:
             </label>
             <select
-              value={selectedState}
-              onChange={(e) => setSelectedState(e.target.value)}
+              value={selectedState || ''}
+              onChange={(e) => setSelectedState(e.target.value ? e.target.value : null)}
               className="rounded-xl border border-slate-200 dark:border-ink-800 bg-slate-50 dark:bg-ink-950 px-3.5 py-2 text-sm font-semibold text-slate-900 dark:text-white min-w-[210px] outline-none focus:border-cyan-500 cursor-pointer"
             >
+              <option value="">All States (Pan-India Overview)</option>
               {filteredStates.map((s) => (
                 <option key={s.state} value={s.state}>
                   {s.state} ({s.project_count} projects)
@@ -378,15 +390,27 @@ export default function StateAnalysis() {
           <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 flex-shrink-0">
             <Layers size={12} /> Key Hubs:
           </span>
+          <button
+            type="button"
+            onClick={() => setSelectedState(null)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              !selectedState
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-sm font-semibold'
+                : 'bg-slate-100 dark:bg-ink-950 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-ink-800'
+            }`}
+          >
+            All States (Pan-India)
+          </button>
           {POPULAR_STATES.map((st) => {
-            const isSelected = selectedState.toLowerCase() === st.toLowerCase()
+            const isSelected = selectedState ? selectedState.toLowerCase() === st.toLowerCase() : false
             return (
               <button
                 key={st}
-                onClick={() => setSelectedState(st)}
+                type="button"
+                onClick={() => setSelectedState(isSelected ? null : st)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                   isSelected
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-sm'
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-950 shadow-sm font-semibold'
                     : 'bg-slate-100 dark:bg-ink-950 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-ink-800'
                 }`}
               >
@@ -415,9 +439,22 @@ export default function StateAnalysis() {
             </div>
 
             <div className="flex-1 rounded-xl bg-[#e0f2fe] dark:bg-[#d0e8fa] border border-[#bae6fd] dark:border-[#a8d4f7] min-h-[520px] sm:min-h-[580px] md:min-h-[640px] flex items-center justify-center relative overflow-hidden">
-              <span className="absolute top-3 right-3 z-20 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-800 bg-white/90 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-xs">
+              <span className="absolute top-3 right-3 z-20 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300 bg-white/90 dark:bg-ink-900/90 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700 shadow-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {selectedState} selected
+                {selectedState ? `${selectedState} selected` : 'All 36 States & UTs Active'}
+                {selectedState && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedState(null)
+                    }}
+                    className="ml-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 font-bold cursor-pointer text-xs"
+                    title="Clear selection and show all states"
+                  >
+                    ×
+                  </button>
+                )}
               </span>
               <IndiaMapSvg
                 selectedStateId={currentMapId}
@@ -431,7 +468,7 @@ export default function StateAnalysis() {
             <div className="mt-3.5 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-ink-800">
               <span className="flex items-center gap-1">
                 <MapPin size={12} className="text-cyan-500" />
-                Selected: <strong className="text-slate-800 dark:text-white ml-1">{selectedState}</strong>
+                Selected: <strong className="text-slate-800 dark:text-white ml-1">{selectedState || 'All States (Pan-India)'}</strong>
               </span>
               <span>{stateDetail?.projects ?? 0} active initiatives</span>
             </div>
@@ -446,7 +483,7 @@ export default function StateAnalysis() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white">
-                    {stateDetail?.name || selectedState}
+                    {stateDetail?.name || selectedState || 'Pan-India Infrastructure Portfolio'}
                   </h2>
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${badge.bg}`}>
                     {badge.label}
@@ -647,7 +684,7 @@ export default function StateAnalysis() {
               PORTFOLIO COMPOSITION
             </p>
             <h3 className="font-display font-semibold text-slate-900 dark:text-white text-lg">
-              Sector Distribution in {selectedState}
+              Sector Distribution in {selectedState || 'Pan-India'}
             </h3>
           </div>
           <span className="text-xs text-slate-400">
@@ -699,10 +736,12 @@ export default function StateAnalysis() {
               </p>
             </div>
             <h3 className="font-display text-2xl font-bold text-slate-900 dark:text-white">
-              Projects in {selectedState}
+              {selectedState ? `Projects in ${selectedState}` : 'Priority Projects (Pan-India)'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Verified ground progress, capital expenditure velocity, and live XGBoost risk signals for all monitored packages in {selectedState}.
+              {selectedState
+                ? `Verified ground progress, capital expenditure velocity, and live XGBoost risk signals for all monitored packages in ${selectedState}.`
+                : 'National portfolio overview of top monitored capital expenditure initiatives and risk signals across Indian states & UTs.'}
             </p>
           </div>
 
@@ -712,7 +751,7 @@ export default function StateAnalysis() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder={`Search ${selectedState} projects...`}
+                placeholder={selectedState ? `Search ${selectedState} projects...` : "Search across all initiatives..."}
                 value={projectSearchQuery}
                 onChange={(e) => setProjectSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-ink-800 bg-white dark:bg-ink-950 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:border-cyan-500 transition-colors"
@@ -801,7 +840,7 @@ export default function StateAnalysis() {
               No Projects Match the Selected Filters
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-              No initiatives in {selectedState} match '{projectSearchQuery || projectRiskFilter}'. Try resetting filters.
+              No initiatives in {selectedState || 'the selected criteria'} match '{projectSearchQuery || projectRiskFilter}'. Try resetting filters.
             </p>
             <button
               onClick={() => {
@@ -868,12 +907,12 @@ export default function StateAnalysis() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-ink-800/60">
               {filteredLeaderboard.map((st, idx) => {
-                const isSelected = selectedState.toLowerCase() === st.state.toLowerCase()
+                const isSelected = selectedState ? selectedState.toLowerCase() === st.state.toLowerCase() : false
                 const health = Math.max(0, Math.min(100, Math.round(100 - Math.max(0, st.avg_cost_overrun_pct))))
                 return (
                   <tr
                     key={st.state}
-                    onClick={() => setSelectedState(st.state)}
+                    onClick={() => setSelectedState(isSelected ? null : st.state)}
                     className={`cursor-pointer transition-colors ${
                       isSelected
                         ? 'bg-cyan-500/10 dark:bg-cyan-500/15 font-semibold'

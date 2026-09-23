@@ -679,6 +679,66 @@ def format_cr_amount(cr_val: float) -> str:
 
 @app.get("/api/states/{state_name}")
 def state_detail(state_name: str):
+    clean_name = state_name.lower().strip()
+    if clean_name in ("all", "national", "pan-india", "all states", "all-states"):
+        proj_query = """
+        SELECT 
+            p.project_id, p.sector, p.state, p.sanctioned_cost, p.sanctioned_date, p.original_end_date, p.completion_date, p.date_of_completion, p.duration_months,
+            s.physical_progress_pct, s.financial_progress_pct, s.cumulative_expenditure, s.revised_cost,
+            s.cost_overrun_to_date_pct, s.schedule_slip_months, s.revised_end_date,
+            m.cop_prob, m.top_prob, m.model_risk_score, m.rule_risk_score, m.final_risk_score, m.risk_level
+        FROM projects p
+        LEFT JOIN project_snapshots s ON p.project_id = s.project_id AND s.month = 'July'
+        LEFT JOIN model_risk_scores m ON p.project_id = m.project_id AND m.month = 'July'
+        ORDER BY COALESCE(m.final_risk_score, 0) DESC
+        """
+        p_df = q(proj_query)
+        all_projects = [format_project_card(r) for r in p_df.to_dict("records")]
+        priority_projects = all_projects[:3]
+
+        total_projects = len(all_projects)
+        health = round(sum(p["health"] for p in all_projects) / total_projects) if total_projects > 0 else 82
+
+        trends_df = q(
+            "SELECT month, original_cost_cr, revised_cost_cr, cumulative_expenditure_cr as expenditure_cr, "
+            "national_cost_overrun_pct as cost_overrun_pct FROM national_monthly_trends"
+        )
+        trends_sorted = month_sorted(trends_df).to_dict("records")
+        for t in trends_sorted:
+            t["project_count"] = total_projects
+
+        latest_revised = float(trends_df["revised_cost_cr"].iloc[-1]) if not trends_df.empty else float(p_df["revised_cost"].sum() if "revised_cost" in p_df.columns else 0)
+        latest_exp = float(trends_df["expenditure_cr"].iloc[-1]) if not trends_df.empty else float(p_df["cumulative_expenditure"].sum() if "cumulative_expenditure" in p_df.columns else 0)
+        avg_overrun = round(float(trends_df["cost_overrun_pct"].iloc[-1]), 2) if not trends_df.empty else 8.5
+
+        avg_slip = round(float(p_df["schedule_slip_months"].dropna().mean()), 1) if not p_df.empty and "schedule_slip_months" in p_df.columns and len(p_df["schedule_slip_months"].dropna()) > 0 else 0.0
+
+        sec_mix_df = q(
+            "SELECT sector, COUNT(*) as cnt FROM projects GROUP BY sector ORDER BY cnt DESC")
+        total_proj = sec_mix_df["cnt"].sum() if not sec_mix_df.empty else 1
+        sector_mix = [
+            {"sector": r["sector"], "count": int(r["cnt"]), "pct": float(round(int(r["cnt"]) / total_proj * 100, 1))}
+            for r in sec_mix_df.to_dict("records")
+        ]
+
+        return {
+            "name": "Pan-India Portfolio",
+            "health": health,
+            "projects": total_projects,
+            "investment": format_cr_amount(latest_revised),
+            "expenditure": format_cr_amount(latest_exp),
+            "rawInvestmentCr": round(latest_revised, 2),
+            "rawExpenditureCr": round(latest_exp, 2),
+            "atRisk": avg_overrun,
+            "avgCostOverrun": avg_overrun,
+            "timeExposure": f"{avg_slip} months" if avg_slip > 0 else "0.0 months",
+            "avgScheduleSlip": avg_slip,
+            "sectorMix": sector_mix,
+            "monthlyTrends": trends_sorted,
+            "priorityProjects": priority_projects,
+            "allProjects": all_projects,
+        }
+
     # Try exact match first, then case-insensitive, then partial / alias match
     base = q("SELECT state, project_count, avg_cost_overrun_pct FROM state_baselines WHERE LOWER(state) = LOWER(?)", params=[state_name])
     if base.empty:
