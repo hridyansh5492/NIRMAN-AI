@@ -1,0 +1,9 @@
+{
+  "name": "nirman-ai",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "deploy:pages": "npm run build && npx wrangler pages deploy frontend/dist"
+  }
+}

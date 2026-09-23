@@ -19,7 +19,7 @@ import { projects as mockProjects, states as mockStates } from '../data/mockData
 import { stateCentroids } from '../data/stateCentroids'
 import { stateDistrictHubs } from '../data/stateDistrictHubs'
 
-const BASE_URL = '' // Proxy forwards /api requests to http://127.0.0.1:8000
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
 
 export async function getPortfolioSummary(): Promise<PortfolioSummary> {
   try {
