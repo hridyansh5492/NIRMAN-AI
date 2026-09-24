@@ -25,7 +25,6 @@ const FILTER_PILLS: { key: StatusFilter; label: string }[] = [
 export default function MapView() {
   const [allProjects, setAllProjects] = useState<MapProject[]>([])
   const [loading, setLoading] = useState(true)
-  const [source, setSource] = useState('demo')
   const [sector, setSector] = useState('All')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
   const [query, setQuery] = useState('')
@@ -46,7 +45,6 @@ export default function MapView() {
       .then((res) => {
         if (!alive) return
         setAllProjects(res.projects)
-        setSource(res.mode)
       })
       .catch((err) => console.warn('MapView: could not load map projects', err))
       .finally(() => {
@@ -116,9 +114,6 @@ export default function MapView() {
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
-            </span>
-            <span className="rounded-full bg-slate-100 dark:bg-ink-950 px-3 py-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              source: {source === 'live' ? '/api/projects?map=true' : 'demo fallback'}
             </span>
           </div>
         </div>
